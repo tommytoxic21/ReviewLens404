@@ -23,7 +23,7 @@
 ## Code quality and tests
 Run these inside `frontend/` or `backend/`:
 - Lint: `npm run lint`
-- Format: `npm run format`
+- Format: `npm run format`, `npm run format:check`
 - Tests: `npm test`
 
 Tools: ESLint (lint), Prettier (formatting), Vitest (tests).

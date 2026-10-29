@@ -20,6 +20,16 @@
 - Backend: `cd backend && npm run dev` (http://localhost:3001/health)
 - Frontend: `cd frontend && npm run dev` (http://localhost:5173)
 
+## Code quality and tests
+Run these inside `frontend/` or `backend/`:
+- Lint: `npm run lint`
+- Format: `npm run format`, `npm run format:check`
+- Tests: `npm test`
+
+Tools: ESLint (lint), Prettier (formatting), Vitest (tests).
+The frontend also uses React Testing Library and jsdom.
+NOTE: TypeScript is pinned below 6.1 because typescript-eslint doesn’t support newer versions yet (this was a workaround - idk if it will cause issues for anyone [Daniel])
+
 ## Structure
 - `frontend/`: React UI
 - `backend/`: Fastify API

@@ -15,6 +15,7 @@
    - `cd frontend && npm install`
    - `cd backend && npm install`
 3. Copy `backend/.env.example` to `backend/.env` and fill in your values.
+4. Copy `frontend/.env.example` to `frontend/.env.local` and fill in your values.
 
 ## Run locally
 - Backend: `cd backend && npm run dev` (http://localhost:3001/health)

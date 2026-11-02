@@ -1,0 +1,7 @@
+This project utilizes Clerk for authentication and identity handling. Review data is acquired from the SERP API. 
+OpenAI resources are used to answer user queries about input review data. All review data and AI responses are user-scoped; 
+the AI cannot access information outside of the provided reviews declared by the user. Authorization is enforced on login and on each query, 
+to ensure that the AI is only accessed by the authorized user and only accesses data provided by the user. 
+The client is not trusted to add identifiers outside of the provided reviews in order to preserve the integrity of the AI. 
+Secrets are managed through gitignore. An environment example file is provided, as well as a list of all required dependencies in the ReadMe file. 
+Developers can test cross-user isolation by using new test accounts with different review sets. Every user owned query and mutation must preserve tenant isolation. 

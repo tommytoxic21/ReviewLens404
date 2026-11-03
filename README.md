@@ -39,7 +39,7 @@ NOTE: TypeScript is pinned below 6.1 because typescript-eslint doesn’t support
 
 ## Engineering standards
 
-See [AGENTS.md](./AGENTS.md) for the project's conventions for contributors and AI coding assistants.
+See engineering-standards.md for the project's conventions for contributors and AI coding assistants.
 
 ## Structure
 

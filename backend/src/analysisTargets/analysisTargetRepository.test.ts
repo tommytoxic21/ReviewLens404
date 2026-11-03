@@ -52,7 +52,8 @@ describe('AnalysisTarget repository', () => {
       {
         entityName: 'ReviewLens Coffee',
         platform: 'google',
-        sourceUrl: 'https://example.com/reviewlens-coffee',
+        sourceUrl:
+          'https://www.google.com/maps/place/ReviewLens+Coffee/@40.748,-73.985,17z',
       },
     );
     const afterCreation = new Date();
@@ -78,7 +79,8 @@ describe('AnalysisTarget repository', () => {
       ownerId: 'user_owner_123',
       entityName: 'ReviewLens Coffee',
       platform: 'google',
-      sourceUrl: 'https://example.com/reviewlens-coffee',
+      sourceUrl:
+        'https://www.google.com/maps/place/ReviewLens+Coffee/@40.748,-73.985,17z',
     });
   });
 
@@ -87,7 +89,8 @@ describe('AnalysisTarget repository', () => {
       createAnalysisTarget(connection.db, 'user_owner_123', {
         entityName: '   ',
         platform: 'google',
-        sourceUrl: 'https://example.com/reviewlens-coffee',
+        sourceUrl:
+          'https://www.google.com/maps/place/ReviewLens+Coffee/@40.748,-73.985,17z',
       }),
     ).rejects.toBeInstanceOf(AnalysisTargetValidationError);
 
@@ -102,7 +105,8 @@ describe('AnalysisTarget repository', () => {
       {
         entityName: 'Owner A Restaurant',
         platform: 'google',
-        sourceUrl: 'https://example.com/owner-a-restaurant',
+        sourceUrl:
+          'https://www.google.com/maps/place/Owner+A+Restaurant/@40.748,-73.985,17z',
       },
     );
 

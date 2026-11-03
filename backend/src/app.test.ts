@@ -10,7 +10,7 @@ const clerkOptions = {
 
 describe('GET /health', () => {
   it('remains public', async () => {
-    const app = buildApp(clerkOptions);
+    const app = buildApp({ clerk: clerkOptions, logger: false });
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: 'ok' });
@@ -26,7 +26,7 @@ describe('requireAuthentication', () => {
       headers: { authorization: 'Bearer invalid-session-token' },
     },
   ])('rejects $name', async ({ headers }) => {
-    const app = buildApp(clerkOptions);
+    const app = buildApp({ clerk: clerkOptions, logger: false });
     app.get(
       '/protected-test',
       { preHandler: requireAuthentication },

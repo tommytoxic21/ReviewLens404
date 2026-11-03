@@ -10,6 +10,15 @@ export interface CreateAnalysisTargetInput {
   sourceUrl: string;
 }
 
+export class AnalysisTargetAccessError extends Error {
+  readonly statusCode = 404;
+
+  constructor() {
+    super('Analysis target was not found.');
+    this.name = 'AnalysisTargetAccessError';
+  }
+}
+
 export async function createAnalysisTarget(
   db: Database,
   authenticationContext: AuthenticationContext,
@@ -51,6 +60,35 @@ export async function getAnalysisTargetByIdForOwner(
     .limit(1);
 
   return target;
+}
+
+export async function requireAnalysisTargetForOwner(
+  db: Database,
+  authenticationContext: AuthenticationContext,
+  targetId: string,
+): Promise<AnalysisTarget> {
+  const target = await getAnalysisTargetByIdForOwner(
+    db,
+    authenticationContext,
+    targetId,
+  );
+
+  if (!target) {
+    throw new AnalysisTargetAccessError();
+  }
+
+  return target;
+}
+
+export async function listAnalysisTargetsForOwner(
+  db: Database,
+  authenticationContext: AuthenticationContext,
+): Promise<AnalysisTarget[]> {
+  return db
+    .select()
+    .from(analysisTargets)
+    .where(eq(analysisTargets.ownerId, authenticationContext.userId))
+    .orderBy(analysisTargets.createdAt);
 }
 
 export async function deleteAnalysisTargetForOwner(

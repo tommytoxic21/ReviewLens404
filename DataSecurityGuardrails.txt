@@ -1,7 +1,48 @@
-This project utilizes Clerk for authentication and identity handling. Review data is acquired from the SERP API. 
-OpenAI resources are used to answer user queries about input review data. All review data and AI responses are user-scoped; 
-the AI cannot access information outside of the provided reviews declared by the user. Authorization is enforced on login and on each query, 
-to ensure that the AI is only accessed by the authorized user and only accesses data provided by the user. 
-The client is not trusted to add identifiers outside of the provided reviews in order to preserve the integrity of the AI. 
-Secrets are managed through gitignore. An environment example file is provided, as well as a list of all required dependencies in the ReadMe file. 
-Developers can test cross-user isolation by using new test accounts with different review sets. Every user owned query and mutation must preserve tenant isolation. 
+ReviewLens Data and Security Guardrails
+
+Identity and ownership
+
+- Clerk is the managed authentication provider. ReviewLens never stores or
+  verifies passwords.
+- Backend middleware verifies the Clerk session token on every protected API
+  request and builds the trusted authentication context from Clerk's user ID.
+- An AnalysisTarget stores that verified Clerk user ID as its owner. Reviews
+  and ingestion attempts inherit ownership through their required
+  AnalysisTarget foreign key.
+- Logout removes the Clerk browser session. A stale or missing session token is
+  rejected independently by the backend.
+
+Authorization boundary
+
+- Target lists, target reads, deletes, review reads, review persistence, and
+  ingestion all verify target ownership in backend queries or services.
+- A target that does not exist and a target owned by another user both produce
+  the same not-found result. Do not reveal another user's target existence.
+- Never accept `userId`, `ownerId`, review records, or an ingestion source URL
+  from a browser as proof of ownership. Creation derives the owner from Clerk;
+  ingestion loads the saved source URL from the owned target.
+- The browser has no endpoint for directly creating reviews. Reviews are
+  created only from normalized provider results after ownership checks pass.
+- Every new user-owned query or mutation must preserve these constraints.
+
+Secrets and provider data
+
+- SerpApi is the Google Maps review provider. `SERPAPI_API_KEY`,
+  `CLERK_SECRET_KEY`, and database URLs are backend-only values.
+- Only Clerk's publishable key is intentionally delivered to browser code.
+- `.env` files are ignored. `.env.example` files contain names and placeholder
+  values only. Never log tokens, provider URLs containing an API key, review
+  text, or credentials.
+- Provider failure or unusable records must produce a failed ingestion attempt;
+  never substitute sample or fabricated reviews.
+
+Isolation testing
+
+- Automated tests use two distinct identities. User B must be unable to open,
+  delete, ingest, list reviews for, or create child data beneath User A's
+  target.
+- Tests verify that a cross-user ingestion request is rejected before the
+  review provider is called and that unauthenticated responses contain no
+  protected data.
+- Database integration tests use `TEST_DATABASE_URL`, which must never point to
+  the development or production database.

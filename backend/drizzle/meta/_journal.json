@@ -8,6 +8,13 @@
       "when": 1793718208675,
       "tag": "0000_silky_kree",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793740895843,
+      "tag": "0001_modern_colonel_america",
+      "breakpoints": true
     }
   ]
 }

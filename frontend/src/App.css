@@ -162,6 +162,12 @@ input[readonly] {
   margin: 0;
   font-weight: 600;
 }
+.ingestion-error {
+  display: block;
+  color: #a22222;
+  font-weight: 500;
+  margin-top: 6px;
+}
 .break-word {
   overflow-wrap: anywhere;
 }

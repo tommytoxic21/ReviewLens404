@@ -65,4 +65,3 @@ The ingestion implementation supports:
 - Legacy `goo.gl/maps` sharing links.
 
 Shortened URLs must redirect to an approved Google Maps destination containing a resolvable identifier.
-

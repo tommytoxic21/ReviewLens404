@@ -164,7 +164,7 @@ function Workspace() {
     setNotice('');
     try {
       await targetsApi.ingest(await token(), active.id);
-      setNotice('Ingestion request submitted.');
+      setNotice('Review ingestion completed successfully.');
       await openTarget(active.id);
     } catch (err) {
       setError(
@@ -228,17 +228,18 @@ function Workspace() {
             />
             <label htmlFor="target-platform">Review platform</label>
             <input id="target-platform" value="Google Maps" readOnly />
-            <label htmlFor="target-source">Google Maps source reference</label>
+            <label htmlFor="target-source">Google Maps source URL</label>
             <input
               id="target-source"
+              type="url"
               value={sourceReference}
               onChange={(event) => setSourceReference(event.target.value)}
               required
-              placeholder="Google Maps listing URL or place identifier"
+              placeholder="https://www.google.com/maps/place/..."
             />
             <p className="hint">
-              Paste a reference that identifies the exact listing you want to
-              analyze.
+              Paste the public listing URL. ReviewLens uses this saved URL as
+              the source for ingestion.
             </p>
             <div className="actions">
               <button
@@ -266,21 +267,30 @@ function Workspace() {
           <dl className="details">
             <dt>Platform</dt>
             <dd>
-              {active.platform === 'google_maps'
+              {active.platform === 'google_maps' || active.platform === 'google'
                 ? 'Google Maps'
                 : active.platform}
             </dd>
-            <dt>Source reference</dt>
-            <dd className="break-word">{active.sourceReference}</dd>
+            <dt>Source URL</dt>
+            <dd className="break-word">
+              <a href={active.sourceReference} target="_blank" rel="noreferrer">
+                {active.sourceReference}
+              </a>
+            </dd>
             <dt>Ingestion status</dt>
-            <dd>{active.ingestionStatus ?? 'Not started'}</dd>
+            <dd>
+              {active.ingestionStatus ?? 'Not started'}
+              {active.ingestionError && (
+                <span className="ingestion-error">{active.ingestionError}</span>
+              )}
+            </dd>
           </dl>
           <button
             className="button primary"
             disabled={processing}
             onClick={() => void ingest()}
           >
-            {processing ? 'Starting ingestion…' : 'Start ingestion'}
+            {processing ? 'Ingesting reviews…' : 'Ingest from source URL'}
           </button>
         </section>
       )}

@@ -5,6 +5,9 @@
 - Frontend: React + TypeScript (Vite)
 - Backend: Node.js + TypeScript + Fastify
 - Database: PostgreSQL
+- Managed identity: Clerk
+- Supported review platform: Google Maps
+- Review provider: SerpApi Google Maps APIs
 
 ## Prerequisites
 
@@ -23,10 +26,59 @@
    `TEST_DATABASE_URL`.
 6. Apply backend database migrations with `cd backend && npm run db:migrate`.
 
+Required backend configuration:
+
+- `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`: Clerk backend credentials.
+- `DATABASE_URL`: the application PostgreSQL database.
+- `TEST_DATABASE_URL`: a separate disposable PostgreSQL test database.
+- `SERPAPI_API_KEY`: server-side SerpApi credential for Google Maps review
+  ingestion.
+- `PORT`: optional; defaults to `3001`.
+
+Required frontend configuration:
+
+- `VITE_CLERK_PUBLISHABLE_KEY`: Clerk's browser-safe publishable key.
+
+The browser calls the same-origin `/api` path. Local development uses Vite's
+proxy; production hosting should route `/api` to the backend.
+
+Never put `CLERK_SECRET_KEY`, `SERPAPI_API_KEY`, or database credentials in a
+frontend environment variable. Only variables prefixed with `VITE_` are
+delivered to browser code.
+
 ## Run locally
 
 - Backend: `cd backend && npm run dev` (http://localhost:3001/health)
 - Frontend: `cd frontend && npm run dev` (http://localhost:5173)
+
+## Sprint 1 workflow
+
+1. Sign in through Clerk.
+2. Create an AnalysisTarget with an entity name and public Google Maps place
+   URL. The platform is fixed to Google Maps.
+3. Open the persisted target workspace.
+4. Choose **Ingest from source URL**. The backend loads the target using the
+   verified Clerk identity and uses the target's saved URL—not a URL or owner ID
+   supplied to the ingestion request.
+5. ReviewLens resolves the Google Maps place through SerpApi, normalizes only
+   records that contain both review text and rating, persists useful source
+   metadata, and records the attempt as `succeeded` or `failed`.
+
+ReviewLens does not provide a manual or file-import fallback in Sprint 1. It
+does not create sample reviews when the provider fails or returns unusable
+records.
+
+Protected API routes are under `/api`:
+
+- `GET /analysis-targets`
+- `POST /analysis-targets`
+- `GET /analysis-targets/:targetId`
+- `DELETE /analysis-targets/:targetId`
+- `POST /analysis-targets/:targetId/ingestions`
+
+Each protected request verifies a Clerk session token. All target, review, and
+ingestion-attempt access is constrained by the authenticated owner on the
+backend.
 
 ## Code quality and tests
 
@@ -38,7 +90,8 @@ Run these inside `frontend/` or `backend/`:
 
 Backend database integration tests require `TEST_DATABASE_URL`. The test
 database must be separate from the development database because the tests
-delete their own AnalysisTarget records between cases.
+delete their own AnalysisTarget records between cases. Provider tests use
+deterministic mocks and never require a live SerpApi key.
 
 Backend database commands:
 

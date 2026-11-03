@@ -5,12 +5,12 @@ import {
   integer,
   jsonb,
   pgTable,
+  real,
   text,
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
 
-// Existing AnalysisTarget model — unchanged.
 export const analysisTargets = pgTable(
   'analysis_targets',
   {
@@ -29,30 +29,20 @@ export const analysisTargets = pgTable(
   (table) => [index('analysis_targets_owner_id_idx').on(table.ownerId)],
 );
 
-export type AnalysisTarget = typeof analysisTargets.$inferSelect;
-
-// S1-022: Persist normalized reviews.
 export const reviews = pgTable(
   'reviews',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-
     analysisTargetId: uuid('analysis_target_id')
       .notNull()
-      .references(() => analysisTargets.id, {
-        onDelete: 'cascade',
-      }),
-
+      .references(() => analysisTargets.id, { onDelete: 'cascade' }),
     text: text('text').notNull(),
-    rating: integer('rating').notNull(),
-
+    rating: real('rating').notNull(),
     sourceReviewId: text('source_review_id'),
     reviewerName: text('reviewer_name'),
     reviewDate: text('review_date'),
     reviewUrl: text('review_url'),
-
     sourceMetadata: jsonb('source_metadata').$type<Record<string, unknown>>(),
-
     createdAt: timestamp('created_at', {
       withTimezone: true,
       mode: 'date',
@@ -67,40 +57,27 @@ export const reviews = pgTable(
   ],
 );
 
-export type Review = typeof reviews.$inferSelect;
-
-// S1-023: Record review ingestion attempts and outcomes.
 export const ingestionAttempts = pgTable(
   'ingestion_attempts',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-
     analysisTargetId: uuid('analysis_target_id')
       .notNull()
-      .references(() => analysisTargets.id, {
-        onDelete: 'cascade',
-      }),
-
+      .references(() => analysisTargets.id, { onDelete: 'cascade' }),
     status: text('status')
       .$type<'processing' | 'succeeded' | 'failed'>()
       .default('processing')
       .notNull(),
-
     receivedCount: integer('received_count').default(0).notNull(),
-
     savedCount: integer('saved_count').default(0).notNull(),
-
     rejectedCount: integer('rejected_count').default(0).notNull(),
-
     errorMessage: text('error_message'),
-
     startedAt: timestamp('started_at', {
       withTimezone: true,
       mode: 'date',
     })
       .defaultNow()
       .notNull(),
-
     completedAt: timestamp('completed_at', {
       withTimezone: true,
       mode: 'date',
@@ -121,4 +98,6 @@ export const ingestionAttempts = pgTable(
   ],
 );
 
+export type AnalysisTarget = typeof analysisTargets.$inferSelect;
+export type Review = typeof reviews.$inferSelect;
 export type IngestionAttempt = typeof ingestionAttempts.$inferSelect;

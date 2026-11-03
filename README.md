@@ -19,6 +19,9 @@
    - `cd backend && npm install`
 3. Copy `backend/.env.example` to `backend/.env` and fill in your values.
 4. Copy `frontend/.env.example` to `frontend/.env.local` and fill in your values.
+5. Create the PostgreSQL databases named in `DATABASE_URL` and
+   `TEST_DATABASE_URL`.
+6. Apply backend database migrations with `cd backend && npm run db:migrate`.
 
 ## Run locally
 
@@ -32,6 +35,15 @@ Run these inside `frontend/` or `backend/`:
 - Lint: `npm run lint`
 - Format: `npm run format`, `npm run format:check`
 - Tests: `npm test`
+
+Backend database integration tests require `TEST_DATABASE_URL`. The test
+database must be separate from the development database because the tests
+delete their own AnalysisTarget records between cases.
+
+Backend database commands:
+
+- Generate a migration after changing the schema: `npm run db:generate`
+- Apply committed migrations: `npm run db:migrate`
 
 Tools: ESLint (lint), Prettier (formatting), Vitest (tests).
 The frontend also uses React Testing Library and jsdom.

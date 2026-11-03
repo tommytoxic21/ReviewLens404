@@ -122,7 +122,7 @@ export const targetsApi = {
       token,
       {
         method: 'POST',
-	body: JSON.stringify({}),
+        body: JSON.stringify({}),
       },
     ),
 };

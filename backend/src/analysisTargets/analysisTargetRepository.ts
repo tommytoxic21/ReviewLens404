@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
 import { analysisTargets, type AnalysisTarget } from '../db/schema.js';
+import { validateAnalysisTargetInput } from './analysisTargetValidation.js';
 
 export interface CreateAnalysisTargetInput {
   entityName: string;
@@ -13,6 +14,8 @@ export async function createAnalysisTarget(
   authenticatedOwnerId: string,
   input: CreateAnalysisTargetInput,
 ): Promise<AnalysisTarget> {
+  validateAnalysisTargetInput(input);
+
   const [createdTarget] = await db
     .insert(analysisTargets)
     .values({

@@ -1,5 +1,5 @@
 {
-  "id": "d0aca09f-d8b0-4d6a-ae06-031fed46dcb0",
+  "id": "166df5f0-d4a4-4e14-8e64-057550a7a722",
   "prevId": "cfd7e2d7-0bff-44c8-8847-9de4c9008d73",
   "version": "7",
   "dialect": "postgresql",
@@ -71,104 +71,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.ingestion_attempts": {
-      "name": "ingestion_attempts",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "analysis_target_id": {
-          "name": "analysis_target_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "ingestion_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "review_count": {
-          "name": "review_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "rejected_review_count": {
-          "name": "rejected_review_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "ingestion_attempts_target_started_idx": {
-          "name": "ingestion_attempts_target_started_idx",
-          "columns": [
-            {
-              "expression": "analysis_target_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "ingestion_attempts_analysis_target_id_analysis_targets_id_fk": {
-          "name": "ingestion_attempts_analysis_target_id_analysis_targets_id_fk",
-          "tableFrom": "ingestion_attempts",
-          "tableTo": "analysis_targets",
-          "columnsFrom": ["analysis_target_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.reviews": {
       "name": "reviews",
       "schema": "",
@@ -186,23 +88,23 @@
           "primaryKey": false,
           "notNull": true
         },
-        "source_review_id": {
-          "name": "source_review_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "review_text": {
-          "name": "review_text",
+        "text": {
+          "name": "text",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
         "rating": {
           "name": "rating",
-          "type": "real",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "source_review_id": {
+          "name": "source_review_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "reviewer_name": {
           "name": "reviewer_name",
@@ -210,15 +112,21 @@
           "primaryKey": false,
           "notNull": false
         },
-        "reviewed_at": {
-          "name": "reviewed_at",
-          "type": "timestamp with time zone",
+        "review_date": {
+          "name": "review_date",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
         "review_url": {
           "name": "review_url",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_metadata": {
+          "name": "source_metadata",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -245,27 +153,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "reviews_target_source_id_unique": {
-          "name": "reviews_target_source_id_unique",
-          "columns": [
-            {
-              "expression": "analysis_target_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "source_review_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -282,17 +169,20 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "reviews_rating_range": {
+          "name": "reviews_rating_range",
+          "value": "\"reviews\".\"rating\" BETWEEN 1 AND 5"
+        },
+        "reviews_text_not_empty": {
+          "name": "reviews_text_not_empty",
+          "value": "length(btrim(\"reviews\".\"text\")) > 0"
+        }
+      },
       "isRLSEnabled": false
     }
   },
-  "enums": {
-    "public.ingestion_status": {
-      "name": "ingestion_status",
-      "schema": "public",
-      "values": ["processing", "succeeded", "failed"]
-    }
-  },
+  "enums": {},
   "schemas": {},
   "sequences": {},
   "roles": {},

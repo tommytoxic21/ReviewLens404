@@ -12,8 +12,22 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1793740895843,
-      "tag": "0001_modern_colonel_america",
+      "when": 1793736059939,
+      "tag": "0001_blue_xavin",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793737684325,
+      "tag": "0002_slow_triathlon",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793742050988,
+      "tag": "0003_reconcile-ingestion-schema",
       "breakpoints": true
     }
   ]

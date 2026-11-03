@@ -1,12 +1,13 @@
+import { sql } from 'drizzle-orm';
 import {
+  check,
   index,
   integer,
-  pgEnum,
+  jsonb,
   pgTable,
   real,
   text,
   timestamp,
-  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -35,15 +36,13 @@ export const reviews = pgTable(
     analysisTargetId: uuid('analysis_target_id')
       .notNull()
       .references(() => analysisTargets.id, { onDelete: 'cascade' }),
-    sourceReviewId: text('source_review_id'),
-    reviewText: text('review_text').notNull(),
+    text: text('text').notNull(),
     rating: real('rating').notNull(),
+    sourceReviewId: text('source_review_id'),
     reviewerName: text('reviewer_name'),
-    reviewedAt: timestamp('reviewed_at', {
-      withTimezone: true,
-      mode: 'date',
-    }),
+    reviewDate: text('review_date'),
     reviewUrl: text('review_url'),
+    sourceMetadata: jsonb('source_metadata').$type<Record<string, unknown>>(),
     createdAt: timestamp('created_at', {
       withTimezone: true,
       mode: 'date',
@@ -53,18 +52,10 @@ export const reviews = pgTable(
   },
   (table) => [
     index('reviews_analysis_target_id_idx').on(table.analysisTargetId),
-    uniqueIndex('reviews_target_source_id_unique').on(
-      table.analysisTargetId,
-      table.sourceReviewId,
-    ),
+    check('reviews_rating_range', sql`${table.rating} BETWEEN 1 AND 5`),
+    check('reviews_text_not_empty', sql`length(btrim(${table.text})) > 0`),
   ],
 );
-
-export const ingestionStatus = pgEnum('ingestion_status', [
-  'processing',
-  'succeeded',
-  'failed',
-]);
 
 export const ingestionAttempts = pgTable(
   'ingestion_attempts',
@@ -73,9 +64,13 @@ export const ingestionAttempts = pgTable(
     analysisTargetId: uuid('analysis_target_id')
       .notNull()
       .references(() => analysisTargets.id, { onDelete: 'cascade' }),
-    status: ingestionStatus('status').notNull(),
-    reviewCount: integer('review_count').default(0).notNull(),
-    rejectedReviewCount: integer('rejected_review_count').default(0).notNull(),
+    status: text('status')
+      .$type<'processing' | 'succeeded' | 'failed'>()
+      .default('processing')
+      .notNull(),
+    receivedCount: integer('received_count').default(0).notNull(),
+    savedCount: integer('saved_count').default(0).notNull(),
+    rejectedCount: integer('rejected_count').default(0).notNull(),
     errorMessage: text('error_message'),
     startedAt: timestamp('started_at', {
       withTimezone: true,
@@ -89,9 +84,16 @@ export const ingestionAttempts = pgTable(
     }),
   },
   (table) => [
-    index('ingestion_attempts_target_started_idx').on(
-      table.analysisTargetId,
-      table.startedAt,
+    index('ingestion_attempts_target_id_idx').on(table.analysisTargetId),
+    check(
+      'ingestion_attempts_valid_status',
+      sql`${table.status} IN ('processing', 'succeeded', 'failed')`,
+    ),
+    check(
+      'ingestion_attempts_nonnegative_counts',
+      sql`${table.receivedCount} >= 0
+        AND ${table.savedCount} >= 0
+        AND ${table.rejectedCount} >= 0`,
     ),
   ],
 );

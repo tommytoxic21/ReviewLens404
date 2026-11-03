@@ -57,10 +57,14 @@ export async function ingestReviewsForOwnedTarget(
     authenticationContext,
     targetId,
   );
+  let receivedCount = 0;
+  let rejectedCount = 0;
 
   try {
     const sourceReviews = await reviewSource.fetchReviews(target);
     const normalized = normalizeSourceReviews(sourceReviews);
+    receivedCount = sourceReviews.length;
+    rejectedCount = normalized.rejectedReviewCount;
 
     if (normalized.reviews.length === 0) {
       throw new IngestionError(
@@ -74,7 +78,12 @@ export async function ingestReviewsForOwnedTarget(
         .values(
           normalized.reviews.map((review) => ({
             analysisTargetId: targetId,
-            ...review,
+            text: review.reviewText,
+            rating: review.rating,
+            sourceReviewId: review.sourceReviewId,
+            reviewerName: review.reviewerName,
+            reviewDate: review.reviewedAt?.toISOString() ?? null,
+            reviewUrl: review.reviewUrl,
           })),
         )
         .onConflictDoNothing()
@@ -83,8 +92,9 @@ export async function ingestReviewsForOwnedTarget(
         .update(ingestionAttempts)
         .set({
           status: 'succeeded',
-          reviewCount: persistedReviews.length,
-          rejectedReviewCount: normalized.rejectedReviewCount,
+          receivedCount,
+          savedCount: persistedReviews.length,
+          rejectedCount,
           completedAt: new Date(),
           errorMessage: null,
         })
@@ -106,7 +116,9 @@ export async function ingestReviewsForOwnedTarget(
       .update(ingestionAttempts)
       .set({
         status: 'failed',
-        reviewCount: 0,
+        receivedCount,
+        savedCount: 0,
+        rejectedCount,
         completedAt: new Date(),
         errorMessage: ingestionError.message,
       })

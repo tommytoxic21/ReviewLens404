@@ -68,6 +68,32 @@ function targetResponse(target: {
   };
 }
 
+function reviewResponse(review: {
+  id: string;
+  analysisTargetId: string;
+  sourceReviewId: string | null;
+  text: string;
+  rating: number;
+  reviewerName: string | null;
+  reviewDate: string | null;
+  reviewUrl: string | null;
+  sourceMetadata: Record<string, unknown> | null;
+  createdAt: Date;
+}) {
+  return {
+    id: review.id,
+    analysisTargetId: review.analysisTargetId,
+    sourceReviewId: review.sourceReviewId,
+    reviewText: review.text,
+    rating: review.rating,
+    reviewerName: review.reviewerName,
+    reviewedAt: review.reviewDate,
+    reviewUrl: review.reviewUrl,
+    sourceMetadata: review.sourceMetadata,
+    createdAt: review.createdAt,
+  };
+}
+
 export async function registerApiRoutes(
   app: FastifyInstance,
   dependencies: ApiDependencies,
@@ -112,7 +138,7 @@ export async function registerApiRoutes(
 
       return {
         target: targetResponse(target),
-        reviews: targetReviews,
+        reviews: targetReviews.map(reviewResponse),
         latestIngestion: latestIngestion ?? null,
       };
     },

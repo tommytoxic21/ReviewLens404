@@ -36,7 +36,12 @@ export async function persistReviewsForOwnedTarget(
     .values(
       input.map((review) => ({
         analysisTargetId: targetId,
-        ...review,
+        text: review.reviewText,
+        rating: review.rating,
+        sourceReviewId: review.sourceReviewId,
+        reviewerName: review.reviewerName,
+        reviewDate: review.reviewedAt?.toISOString() ?? null,
+        reviewUrl: review.reviewUrl,
       })),
     )
     .onConflictDoNothing()

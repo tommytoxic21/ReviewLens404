@@ -1,6 +1,8 @@
 import 'dotenv/config';
+
 import { buildApp } from './app.js';
 import { createDatabaseConnection } from './db/client.js';
+import { ingestionRoutes } from './ingestion/ingestionRoutes.js';
 import { SerpApiGoogleMapsReviewSource } from './reviews/serpApiGoogleMapsReviewSource.js';
 
 const clerkPublishableKey = process.env.CLERK_PUBLISHABLE_KEY;
@@ -15,7 +17,6 @@ if (!clerkPublishableKey || !clerkSecretKey || !databaseUrl || !serpApiKey) {
 }
 
 const databaseConnection = createDatabaseConnection(databaseUrl);
-const reviewSource = new SerpApiGoogleMapsReviewSource(serpApiKey);
 const app = buildApp({
   clerk: {
     publishableKey: clerkPublishableKey,
@@ -23,19 +24,23 @@ const app = buildApp({
   },
   api: {
     database: databaseConnection.db,
-    reviewSource,
+    reviewSource: new SerpApiGoogleMapsReviewSource(serpApiKey),
   },
 });
+
+app.register(ingestionRoutes, { db: databaseConnection.db });
+app.addHook('onClose', () => databaseConnection.close());
+
 const port = Number(process.env.PORT ?? 3001);
 
-app.listen({ port, host: '0.0.0.0' }).catch((err) => {
-  app.log.error(err);
-  void databaseConnection.close().finally(() => process.exit(1));
+app.listen({ port, host: '0.0.0.0' }).catch(async (error) => {
+  app.log.error(error);
+  await app.close();
+  process.exit(1);
 });
 
 async function shutdown() {
   await app.close();
-  await databaseConnection.close();
 }
 
 process.once('SIGINT', () => void shutdown());

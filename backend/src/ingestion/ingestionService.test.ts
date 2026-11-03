@@ -94,14 +94,15 @@ describe('review ingestion ownership and result state', () => {
     expect(result.attempt).toMatchObject({
       analysisTargetId: target.id,
       status: 'succeeded',
-      reviewCount: 1,
-      rejectedReviewCount: 1,
+      receivedCount: 2,
+      savedCount: 1,
+      rejectedCount: 1,
       errorMessage: null,
     });
     expect(persistedReviews).toHaveLength(1);
     expect(persistedReviews[0]).toMatchObject({
       analysisTargetId: target.id,
-      reviewText: 'Excellent coffee.',
+      text: 'Excellent coffee.',
       rating: 5,
       reviewerName: 'Ada',
     });
@@ -176,7 +177,9 @@ describe('review ingestion ownership and result state', () => {
     ]);
     expect(attempt).toMatchObject({
       status: 'failed',
-      reviewCount: 0,
+      receivedCount: 0,
+      savedCount: 0,
+      rejectedCount: 0,
       errorMessage: 'The review source is unavailable.',
     });
     expect(persistedReviews).toEqual([]);

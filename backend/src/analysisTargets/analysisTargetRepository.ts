@@ -36,7 +36,7 @@ export async function createAnalysisTarget(
 
 export async function getAnalysisTargetByIdForOwner(
   db: Database,
-  authenticatedOwnerId: string,
+  authenticationContext: AuthenticationContext,
   targetId: string,
 ): Promise<AnalysisTarget | undefined> {
   const [target] = await db
@@ -45,10 +45,28 @@ export async function getAnalysisTargetByIdForOwner(
     .where(
       and(
         eq(analysisTargets.id, targetId),
-        eq(analysisTargets.ownerId, authenticatedOwnerId),
+        eq(analysisTargets.ownerId, authenticationContext.userId),
       ),
     )
     .limit(1);
 
   return target;
+}
+
+export async function deleteAnalysisTargetForOwner(
+  db: Database,
+  authenticationContext: AuthenticationContext,
+  targetId: string,
+): Promise<boolean> {
+  const [deletedTarget] = await db
+    .delete(analysisTargets)
+    .where(
+      and(
+        eq(analysisTargets.id, targetId),
+        eq(analysisTargets.ownerId, authenticationContext.userId),
+      ),
+    )
+    .returning({ id: analysisTargets.id });
+
+  return deletedTarget !== undefined;
 }

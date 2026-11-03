@@ -9,6 +9,7 @@ import {
 import { analysisTargets } from '../db/schema.js';
 import {
   createAnalysisTarget,
+  deleteAnalysisTargetForOwner,
   getAnalysisTargetByIdForOwner,
   type CreateAnalysisTargetInput,
 } from './analysisTargetRepository.js';
@@ -61,7 +62,7 @@ describe('AnalysisTarget repository', () => {
 
     const retrievedTarget = await getAnalysisTargetByIdForOwner(
       connection.db,
-      'user_owner_123',
+      { userId: 'user_owner_123' },
       createdTarget.id,
     );
 
@@ -152,24 +153,58 @@ describe('AnalysisTarget repository', () => {
     expect(persistedTargets).toEqual([]);
   });
 
-  it("does not retrieve another owner's target", async () => {
-    const createdTarget = await createAnalysisTarget(
-      connection.db,
-      { userId: 'user_owner_a' },
-      {
-        entityName: 'Owner A Restaurant',
-        platform: 'google',
-        sourceUrl:
-          'https://www.google.com/maps/place/Owner+A+Restaurant/@40.748,-73.985,17z',
-      },
-    );
+  it("does not retrieve or delete another owner's target", async () => {
+    const ownerA = { userId: 'user_owner_a' };
+    const ownerB = { userId: 'user_owner_b' };
+    const createdTarget = await createAnalysisTarget(connection.db, ownerA, {
+      entityName: 'Owner A Restaurant',
+      platform: 'google',
+      sourceUrl:
+        'https://www.google.com/maps/place/Owner+A+Restaurant/@40.748,-73.985,17z',
+    });
 
     const retrievedTarget = await getAnalysisTargetByIdForOwner(
       connection.db,
-      'user_owner_b',
+      ownerB,
+      createdTarget.id,
+    );
+    const deletedTarget = await deleteAnalysisTargetForOwner(
+      connection.db,
+      ownerB,
+      createdTarget.id,
+    );
+    const unchangedTarget = await getAnalysisTargetByIdForOwner(
+      connection.db,
+      ownerA,
       createdTarget.id,
     );
 
+    expect(retrievedTarget).toBeUndefined();
+    expect(deletedTarget).toBe(false);
+    expect(unchangedTarget).toEqual(createdTarget);
+  });
+
+  it("deletes an owner's target", async () => {
+    const owner = { userId: 'user_owner_123' };
+    const createdTarget = await createAnalysisTarget(connection.db, owner, {
+      entityName: 'Owner Restaurant',
+      platform: 'google',
+      sourceUrl:
+        'https://www.google.com/maps/place/Owner+Restaurant/@40.748,-73.985,17z',
+    });
+
+    const deletedTarget = await deleteAnalysisTargetForOwner(
+      connection.db,
+      owner,
+      createdTarget.id,
+    );
+    const retrievedTarget = await getAnalysisTargetByIdForOwner(
+      connection.db,
+      owner,
+      createdTarget.id,
+    );
+
+    expect(deletedTarget).toBe(true);
     expect(retrievedTarget).toBeUndefined();
   });
 

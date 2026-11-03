@@ -10,6 +10,7 @@ import { analysisTargets } from '../db/schema.js';
 import {
   createAnalysisTarget,
   getAnalysisTargetByIdForOwner,
+  type CreateAnalysisTargetInput,
 } from './analysisTargetRepository.js';
 import { AnalysisTargetValidationError } from './analysisTargetValidation.js';
 
@@ -84,14 +85,67 @@ describe('AnalysisTarget repository', () => {
     });
   });
 
-  it('rejects an empty entity name before persistence', async () => {
-    await expect(
-      createAnalysisTarget(connection.db, 'user_owner_123', {
+  it.each([
+    {
+      description: 'a missing entity name',
+      input: {
+        platform: 'google',
+        sourceUrl:
+          'https://www.google.com/maps/place/ReviewLens+Coffee/@40.748,-73.985,17z',
+      } as CreateAnalysisTargetInput,
+    },
+    {
+      description: 'an empty entity name',
+      input: {
         entityName: '   ',
         platform: 'google',
         sourceUrl:
           'https://www.google.com/maps/place/ReviewLens+Coffee/@40.748,-73.985,17z',
-      }),
+      },
+    },
+    {
+      description: 'a missing platform',
+      input: {
+        entityName: 'ReviewLens Coffee',
+        sourceUrl:
+          'https://www.google.com/maps/place/ReviewLens+Coffee/@40.748,-73.985,17z',
+      } as CreateAnalysisTargetInput,
+    },
+    {
+      description: 'an unsupported platform',
+      input: {
+        entityName: 'ReviewLens Coffee',
+        platform: 'yelp',
+        sourceUrl:
+          'https://www.google.com/maps/place/ReviewLens+Coffee/@40.748,-73.985,17z',
+      },
+    },
+    {
+      description: 'a missing source URL',
+      input: {
+        entityName: 'ReviewLens Coffee',
+        platform: 'google',
+      } as CreateAnalysisTargetInput,
+    },
+    {
+      description: 'a malformed source URL',
+      input: {
+        entityName: 'ReviewLens Coffee',
+        platform: 'google',
+        sourceUrl: 'not-a-url',
+      },
+    },
+    {
+      description: 'an unsupported source URL',
+      input: {
+        entityName: 'ReviewLens Coffee',
+        platform: 'google',
+        sourceUrl: 'https://example.com/maps/place/ReviewLens+Coffee',
+      },
+    },
+  ])('rejects $description before persistence', async ({ input }) => {
+    await expect(
+      createAnalysisTarget(connection.db, 'user_owner_123', input),
     ).rejects.toBeInstanceOf(AnalysisTargetValidationError);
 
     const persistedTargets = await connection.db.select().from(analysisTargets);

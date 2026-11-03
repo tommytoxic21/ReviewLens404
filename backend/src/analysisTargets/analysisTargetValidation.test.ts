@@ -19,6 +19,33 @@ function captureValidationError(input: unknown): AnalysisTargetValidationError {
 }
 
 describe('validateAnalysisTargetInput', () => {
+  it('returns validation failures as client errors', () => {
+    const error = captureValidationError({});
+
+    expect(error).toMatchObject({
+      name: 'AnalysisTargetValidationError',
+      message: 'Analysis target input is invalid.',
+      statusCode: 400,
+    });
+    expect(error.issues).toEqual([
+      {
+        field: 'entityName',
+        code: 'required',
+        message: 'Entity name is required.',
+      },
+      {
+        field: 'platform',
+        code: 'required',
+        message: 'Platform is required.',
+      },
+      {
+        field: 'sourceUrl',
+        code: 'required',
+        message: 'Source URL is required.',
+      },
+    ]);
+  });
+
   it('rejects input with a missing entity name', () => {
     const error = captureValidationError({
       platform: 'google',
@@ -134,10 +161,16 @@ describe('validateAnalysisTargetInput', () => {
 
   it.each([
     'https://example.com/maps/place/ReviewLens+Coffee',
+    'https://maps.app.goo.gl.evil.example/AbCdEf123456',
+    'https://www.google.com.evil.example/maps/place/ReviewLens+Coffee',
     'https://www.google.com/search?q=ReviewLens+Coffee',
     'https://www.google.com/maps/place/',
+    'https://www.google.com/maps/place/%20',
     'https://www.google.com/maps/search/?api=1',
     'https://maps.app.goo.gl/',
+    'https://maps.app.goo.gl/not/a-token',
+    'https://maps.app.goo.gl/not%20a%20token',
+    'https://goo.gl/maps/',
   ])('rejects the unsupported source URL %s', (sourceUrl) => {
     const error = captureValidationError({
       entityName: 'ReviewLens Coffee',
@@ -150,6 +183,22 @@ describe('validateAnalysisTargetInput', () => {
         field: 'sourceUrl',
         code: 'unsupported',
         message: 'Source URL must identify a Google Maps place.',
+      },
+    ]);
+  });
+
+  it('rejects a Google Maps URL longer than 2,048 characters', () => {
+    const error = captureValidationError({
+      entityName: 'ReviewLens Coffee',
+      platform: 'google',
+      sourceUrl: `https://www.google.com/maps/place/${'a'.repeat(2049)}`,
+    });
+
+    expect(error.issues).toEqual([
+      {
+        field: 'sourceUrl',
+        code: 'invalid',
+        message: 'Source URL must not exceed 2,048 characters.',
       },
     ]);
   });

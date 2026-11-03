@@ -10,6 +10,7 @@ export interface AnalysisTargetValidationIssue {
 }
 
 export class AnalysisTargetValidationError extends Error {
+  readonly statusCode = 400;
   readonly issues: readonly AnalysisTargetValidationIssue[];
 
   constructor(issues: AnalysisTargetValidationIssue[]) {
@@ -18,6 +19,9 @@ export class AnalysisTargetValidationError extends Error {
     this.issues = issues;
   }
 }
+
+const MAX_SOURCE_URL_LENGTH = 2048;
+const SHORT_LINK_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 function getInputField(
   input: unknown,
@@ -101,9 +105,17 @@ function isGoogleDomain(hostname: string): boolean {
 }
 
 function hasPathValue(pathname: string, prefix: string): boolean {
-  return (
-    pathname.startsWith(prefix) && pathname.slice(prefix.length).length > 0
-  );
+  if (!pathname.startsWith(prefix)) {
+    return false;
+  }
+
+  const firstPathSegment = pathname.slice(prefix.length).split('/')[0];
+
+  try {
+    return decodeURIComponent(firstPathSegment).trim().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 function hasSearchParamValue(url: URL, name: string): boolean {
@@ -115,11 +127,18 @@ function isGoogleMapsUrl(url: URL): boolean {
   const pathSegments = url.pathname.split('/').filter(Boolean);
 
   if (url.hostname === 'maps.app.goo.gl') {
-    return pathSegments.length > 0;
+    return (
+      pathSegments.length === 1 &&
+      SHORT_LINK_TOKEN_PATTERN.test(pathSegments[0] ?? '')
+    );
   }
 
   if (url.hostname === 'goo.gl') {
-    return pathSegments[0] === 'maps' && pathSegments.length > 1;
+    return (
+      pathSegments.length === 2 &&
+      pathSegments[0] === 'maps' &&
+      SHORT_LINK_TOKEN_PATTERN.test(pathSegments[1] ?? '')
+    );
   }
 
   if (!isGoogleDomain(url.hostname)) {
@@ -172,6 +191,15 @@ function validateSourceUrl(
       field: 'sourceUrl',
       code: 'invalid',
       message: 'Source URL must be a valid HTTPS URL.',
+    });
+    return;
+  }
+
+  if (sourceUrl.length > MAX_SOURCE_URL_LENGTH) {
+    issues.push({
+      field: 'sourceUrl',
+      code: 'invalid',
+      message: 'Source URL must not exceed 2,048 characters.',
     });
     return;
   }

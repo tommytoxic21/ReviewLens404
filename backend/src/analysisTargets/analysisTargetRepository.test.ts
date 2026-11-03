@@ -11,6 +11,7 @@ import {
   createAnalysisTarget,
   getAnalysisTargetByIdForOwner,
 } from './analysisTargetRepository.js';
+import { AnalysisTargetValidationError } from './analysisTargetValidation.js';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -79,6 +80,19 @@ describe('AnalysisTarget repository', () => {
       platform: 'google',
       sourceUrl: 'https://example.com/reviewlens-coffee',
     });
+  });
+
+  it('rejects an empty entity name before persistence', async () => {
+    await expect(
+      createAnalysisTarget(connection.db, 'user_owner_123', {
+        entityName: '   ',
+        platform: 'google',
+        sourceUrl: 'https://example.com/reviewlens-coffee',
+      }),
+    ).rejects.toBeInstanceOf(AnalysisTargetValidationError);
+
+    const persistedTargets = await connection.db.select().from(analysisTargets);
+    expect(persistedTargets).toEqual([]);
   });
 
   it("does not retrieve another owner's target", async () => {

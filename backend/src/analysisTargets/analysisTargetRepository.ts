@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import type { AuthenticationContext } from '../authentication.js';
 import type { Database } from '../db/client.js';
 import { analysisTargets, type AnalysisTarget } from '../db/schema.js';
 import { validateAnalysisTargetInput } from './analysisTargetValidation.js';
@@ -11,7 +12,7 @@ export interface CreateAnalysisTargetInput {
 
 export async function createAnalysisTarget(
   db: Database,
-  authenticatedOwnerId: string,
+  authenticationContext: AuthenticationContext,
   input: CreateAnalysisTargetInput,
 ): Promise<AnalysisTarget> {
   validateAnalysisTargetInput(input);
@@ -19,7 +20,7 @@ export async function createAnalysisTarget(
   const [createdTarget] = await db
     .insert(analysisTargets)
     .values({
-      ownerId: authenticatedOwnerId,
+      ownerId: authenticationContext.userId,
       entityName: input.entityName,
       platform: input.platform,
       sourceUrl: input.sourceUrl,

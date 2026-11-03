@@ -18,6 +18,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@clerk/fastify": "^3.1.96",
     "dotenv": "^18.0.8",
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.7",

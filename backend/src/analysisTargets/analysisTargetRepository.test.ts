@@ -49,7 +49,7 @@ describe('AnalysisTarget repository', () => {
     const beforeCreation = new Date();
     const createdTarget = await createAnalysisTarget(
       connection.db,
-      'user_owner_123',
+      { userId: 'user_owner_123' },
       {
         entityName: 'ReviewLens Coffee',
         platform: 'google',
@@ -145,7 +145,7 @@ describe('AnalysisTarget repository', () => {
     },
   ])('rejects $description before persistence', async ({ input }) => {
     await expect(
-      createAnalysisTarget(connection.db, 'user_owner_123', input),
+      createAnalysisTarget(connection.db, { userId: 'user_owner_123' }, input),
     ).rejects.toBeInstanceOf(AnalysisTargetValidationError);
 
     const persistedTargets = await connection.db.select().from(analysisTargets);
@@ -155,7 +155,7 @@ describe('AnalysisTarget repository', () => {
   it("does not retrieve another owner's target", async () => {
     const createdTarget = await createAnalysisTarget(
       connection.db,
-      'user_owner_a',
+      { userId: 'user_owner_a' },
       {
         entityName: 'Owner A Restaurant',
         platform: 'google',
@@ -171,5 +171,24 @@ describe('AnalysisTarget repository', () => {
     );
 
     expect(retrievedTarget).toBeUndefined();
+  });
+
+  it('ignores client-submitted ownership fields', async () => {
+    const clientInput = {
+      entityName: 'Trusted Owner Restaurant',
+      platform: 'google',
+      sourceUrl:
+        'https://www.google.com/maps/place/Trusted+Owner+Restaurant/@40.748,-73.985,17z',
+      userId: 'user_submitted',
+      ownerId: 'owner_submitted',
+    };
+
+    const createdTarget = await createAnalysisTarget(
+      connection.db,
+      { userId: 'user_verified' },
+      clientInput,
+    );
+
+    expect(createdTarget.ownerId).toBe('user_verified');
   });
 });

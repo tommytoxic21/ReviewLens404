@@ -9,6 +9,7 @@ import {
 import { targetsApi } from './targetsApi';
 import type { AnalysisTarget } from './targetsApi';
 import './App.css';
+import ReviewQA from './components/ReviewQA';
 
 function Workspace() {
   const { getToken } = useAuth();
@@ -293,6 +294,25 @@ function Workspace() {
             {processing ? 'Ingesting reviews…' : 'Ingest from source URL'}
           </button>
         </section>
+      )}
+      {!loading && !showForm && active && import.meta.env.DEV && (
+        <div>
+          <p className="hint">
+            Development preview — AI responses are simulated.
+          </p>
+
+          <ReviewQA
+            key={active.id}
+            targetName={active.name}
+            onAsk={async (question) => {
+              await new Promise<void>((resolve) => {
+                setTimeout(resolve, 700);
+              });
+
+              return `Preview only. You asked: "${question}". The AI backend is not connected yet.`;
+            }}
+          />
+        </div>
       )}
       {!loading && !showForm && !active && (
         <section className="panel">

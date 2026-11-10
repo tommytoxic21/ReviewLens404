@@ -101,4 +101,73 @@ describe('targetsApi', () => {
       }),
     ).rejects.toThrow('Source URL is required.');
   });
+
+  it('submits a Q&A question using the selected target and Clerk token', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({
+          answer: 'Reviewers frequently mention friendly staff.',
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      targetsApi.ask(
+        'verified-session-token',
+        'target-1',
+        'What do reviewers like?',
+      ),
+    ).resolves.toBe('Reviewers frequently mention friendly staff.');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/analysis-targets/target-1/questions',
+      {
+        method: 'POST',
+        body: JSON.stringify({ question: 'What do reviewers like?' }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer verified-session-token',
+        },
+      },
+    );
+  });
+
+  it('encodes the target ID in Q&A endpoint paths', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ answer: 'OK' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await targetsApi.ask(
+      'verified-session-token',
+      'target/with?symbols',
+      'Hello',
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/analysis-targets/target%2Fwith%3Fsymbols/questions',
+      expect.anything(),
+    );
+  });
+
+  it('displays useful backend Q&A errors to the caller', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { error: 'No reviews are available for this target.' },
+            422,
+          ),
+        ),
+    );
+
+    await expect(
+      targetsApi.ask(
+        'verified-session-token',
+        'target-1',
+        'What do reviewers say?',
+      ),
+    ).rejects.toThrow('No reviews are available for this target.');
+  });
 });

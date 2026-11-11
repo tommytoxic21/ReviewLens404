@@ -13,6 +13,8 @@ import { getLatestIngestionAttemptForOwnedTarget } from '../ingestion/ingestionR
 import { ingestReviewsForOwnedTarget } from '../ingestion/ingestionService.js';
 import { listReviewsForOwnedTarget } from '../reviews/reviewRepository.js';
 import type { ReviewSource } from '../reviews/reviewSource.js';
+import { registerReviewQaRoutes } from '../qa/qaRoutes.js';
+import type { ReviewQaModel } from '../qa/openAiReviewQa.js';
 
 interface TargetParameters {
   targetId: string;
@@ -30,6 +32,7 @@ export class RequestValidationError extends Error {
 export interface ApiDependencies {
   database: Database;
   reviewSource: ReviewSource;
+  qaModel?: ReviewQaModel;
 }
 
 function authenticationContext(request: FastifyRequest): AuthenticationContext {
@@ -101,6 +104,7 @@ export async function registerApiRoutes(
   const { database, reviewSource } = dependencies;
 
   app.addHook('preHandler', requireAuthentication);
+  registerReviewQaRoutes(app, { database, model: dependencies.qaModel });
 
   app.get('/analysis-targets', async (request) => {
     const targets = await listAnalysisTargetsForOwner(

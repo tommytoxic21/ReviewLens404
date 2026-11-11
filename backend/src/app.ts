@@ -8,6 +8,7 @@ import {
 import { AnalysisTargetAccessError } from './analysisTargets/analysisTargetRepository.js';
 import { AnalysisTargetValidationError } from './analysisTargets/analysisTargetValidation.js';
 import { IngestionError } from './ingestion/ingestionService.js';
+import { ReviewQaError } from './qa/qaService.js';
 
 export interface BuildAppOptions {
   clerk?: ClerkFastifyOptions;
@@ -32,7 +33,8 @@ export function buildApp(options: BuildAppOptions = {}) {
     if (
       error instanceof AnalysisTargetAccessError ||
       error instanceof RequestValidationError ||
-      error instanceof IngestionError
+      error instanceof IngestionError ||
+      error instanceof ReviewQaError
     ) {
       return reply.code(error.statusCode).send({ error: error.message });
     }

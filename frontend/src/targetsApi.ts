@@ -125,4 +125,16 @@ export const targetsApi = {
         body: JSON.stringify({}),
       },
     ),
+  ask: async (token: string, targetId: string, question: string) => {
+    const response = await request<{ answer: string }>(
+      `/api/analysis-targets/${encodeURIComponent(targetId)}/questions`,
+      token,
+      {
+        method: 'POST',
+        body: JSON.stringify({ question }),
+      },
+    );
+
+    return response.answer;
+  },
 };

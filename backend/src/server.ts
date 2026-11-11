@@ -4,6 +4,7 @@ import { buildApp } from './app.js';
 import { createDatabaseConnection } from './db/client.js';
 import { ingestionRoutes } from './ingestion/ingestionRoutes.js';
 import { SerpApiGoogleMapsReviewSource } from './reviews/serpApiGoogleMapsReviewSource.js';
+import { OpenAiReviewQa } from './qa/openAiReviewQa.js';
 
 const clerkPublishableKey = process.env.CLERK_PUBLISHABLE_KEY;
 const clerkSecretKey = process.env.CLERK_SECRET_KEY;
@@ -25,6 +26,12 @@ const app = buildApp({
   api: {
     database: databaseConnection.db,
     reviewSource: new SerpApiGoogleMapsReviewSource(serpApiKey),
+    qaModel: process.env.OPENAI_API_KEY
+      ? new OpenAiReviewQa(
+          process.env.OPENAI_API_KEY,
+          process.env.OPENAI_MODEL ?? 'gpt-5.4-mini',
+        )
+      : undefined,
   },
 });
 

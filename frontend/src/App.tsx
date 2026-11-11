@@ -295,24 +295,14 @@ function Workspace() {
           </button>
         </section>
       )}
-      {!loading && !showForm && active && import.meta.env.DEV && (
-        <div>
-          <p className="hint">
-            Development preview — AI responses are simulated.
-          </p>
-
-          <ReviewQA
-            key={active.id}
-            targetName={active.name}
-            onAsk={async (question) => {
-              await new Promise<void>((resolve) => {
-                setTimeout(resolve, 700);
-              });
-
-              return `Preview only. You asked: "${question}". The AI backend is not connected yet.`;
-            }}
-          />
-        </div>
+      {!loading && !showForm && active && (
+        <ReviewQA
+          key={active.id}
+          targetName={active.name}
+          onAsk={async (question) =>
+            targetsApi.ask(await token(), active.id, question)
+          }
+        />
       )}
       {!loading && !showForm && !active && (
         <section className="panel">

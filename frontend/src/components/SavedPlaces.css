@@ -1,0 +1,261 @@
+.saved-places {
+  background: #fff;
+  border: 1px solid #e2e7ee;
+  border-radius: 18px;
+  padding: 28px;
+  box-shadow: 0 6px 28px rgba(24, 42, 70, 0.035);
+}
+.saved-places__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 26px;
+}
+.saved-places__header h2 {
+  margin: 8px 0 6px;
+  font-size: 23px;
+  letter-spacing: -0.6px;
+}
+.saved-places__total {
+  flex-shrink: 0;
+  padding: 9px 12px;
+  border: 1px solid #e2e7ee;
+  border-radius: 999px;
+  color: #485975;
+  background: #f8faff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.saved-places__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.saved-places__search {
+  position: relative;
+  flex: 1;
+  max-width: 540px;
+}
+.saved-places__search input {
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 14px 11px 39px;
+  border: 1px solid #d9e0e9;
+  background: #fafbfe;
+}
+.saved-places__search input:focus {
+  border-color: #4265ca;
+  background: #fff;
+}
+.saved-places__search-icon {
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  transform: translateY(-50%);
+  color: #64748b;
+  font-size: 23px;
+  line-height: 1;
+}
+.saved-places__view-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #e2e7ee;
+  border-radius: 10px;
+  background: #f7f9fd;
+}
+.saved-places__view-switch button {
+  width: 39px;
+  height: 36px;
+  border: 0;
+  border-radius: 7px;
+  color: #627085;
+  background: transparent;
+  font-size: 18px;
+}
+.saved-places__view-switch button[aria-pressed='true'] {
+  color: #365bc7;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(29, 42, 68, 0.1);
+}
+.saved-places__results {
+  margin: 18px 0 14px;
+  color: #627085;
+  font-size: 12px;
+}
+.saved-places__items {
+  display: grid;
+  gap: 14px;
+}
+.saved-places__items--grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.saved-places__items--list {
+  grid-template-columns: 1fr;
+}
+.saved-place-card {
+  width: 100%;
+  min-width: 0;
+  min-height: 220px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: left;
+  border: 1px solid #e3e9f2;
+  border-radius: 14px;
+  background: #fff;
+  color: #172334;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.saved-place-card:hover {
+  transform: translateY(-2px);
+  border-color: #93a8eb;
+  box-shadow: 0 9px 23px rgba(45, 71, 132, 0.09);
+}
+.saved-place-card__heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.saved-place-card__avatar {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: #e9e7ff;
+  color: #5e50bc;
+  font-size: 21px;
+  font-weight: 800;
+}
+.saved-place-card__avatar--1 {
+  background: #e5f4ee;
+  color: #25785e;
+}
+.saved-place-card__avatar--2 {
+  background: #fff1dd;
+  color: #936323;
+}
+.saved-place-card__avatar--3 {
+  background: #e2efff;
+  color: #3766a1;
+}
+.saved-place-card__name-group {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.saved-place-card__name {
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  line-height: 1.3;
+}
+.saved-place-card__platform {
+  color: #627085;
+  font-size: 12px;
+}
+.saved-place-card__source {
+  display: grid;
+  gap: 6px;
+}
+.saved-place-card__source-label {
+  color: #7d8da3;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.saved-place-card__source-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #475569;
+  font-size: 13px;
+}
+.saved-place-card__footer {
+  margin-top: auto;
+  padding-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid #eef1f7;
+  color: #3559bd;
+  font-size: 13px;
+  font-weight: 750;
+}
+.saved-place-card__arrow {
+  font-size: 19px;
+}
+.saved-places__empty,
+.saved-places__no-results {
+  padding: 48px 16px;
+  text-align: center;
+  border-radius: 12px;
+  background: #fafbfe;
+}
+.saved-places__empty-icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 17px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  color: #6654d1;
+  background: #eeebff;
+  font-size: 27px;
+}
+.saved-places__empty h3,
+.saved-places__no-results h3 {
+  margin-bottom: 7px;
+}
+.saved-places__empty p,
+.saved-places__no-results p {
+  color: #627085;
+  margin: 0 0 19px;
+}
+.saved-places__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 920px) {
+  .saved-places__items--grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 620px) {
+  .saved-places {
+    padding: 19px;
+  }
+  .saved-places__header {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .saved-places__toolbar {
+    align-items: stretch;
+  }
+  .saved-places__items--grid {
+    grid-template-columns: 1fr;
+  }
+  .saved-place-card {
+    min-height: 180px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .saved-place-card {
+    transition: none;
+  }
+}

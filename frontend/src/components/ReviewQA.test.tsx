@@ -24,6 +24,20 @@ describe('ReviewQA', () => {
     ).toBeInTheDocument();
   });
 
+  it('fills the question field when a suggested question is selected', () => {
+    const onAsk = vi.fn();
+    render(<ReviewQA targetName="Test Restaurant" onAsk={onAsk} />);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'How is the service?' }),
+    );
+
+    expect(screen.getByLabelText(/your question/i)).toHaveValue(
+      'How is the service?',
+    );
+    expect(onAsk).not.toHaveBeenCalled();
+  });
+
   it('submits a question and displays the AI response', async () => {
     const onAsk = vi.fn().mockResolvedValue('Customers love the food.');
 

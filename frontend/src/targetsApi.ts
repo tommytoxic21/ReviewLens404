@@ -5,6 +5,17 @@ export interface AnalysisTarget {
   sourceReference: string;
   ingestionStatus?: string | null;
   ingestionError?: string | null;
+  reviews?: Review[];
+}
+
+export interface Review {
+  id: string;
+  reviewText: string;
+  rating: number;
+  reviewerName: string | null;
+  reviewedAt: string | null;
+  reviewUrl: string | null;
+  createdAt?: string | null;
 }
 
 interface ApiAnalysisTarget {
@@ -22,6 +33,7 @@ interface ApiIngestionAttempt {
 interface ApiTargetWorkspace {
   target: ApiAnalysisTarget;
   latestIngestion: ApiIngestionAttempt | null;
+  reviews?: Review[];
 }
 
 export interface NewAnalysisTarget {
@@ -99,7 +111,10 @@ export const targetsApi = {
       `/api/analysis-targets/${encodeURIComponent(id)}`,
       token,
     );
-    return toAnalysisTarget(response.target, response.latestIngestion);
+    return {
+      ...toAnalysisTarget(response.target, response.latestIngestion),
+      reviews: response.reviews ?? [],
+    };
   },
   create: async (token: string, data: NewAnalysisTarget) => {
     const response = await request<{ target: ApiAnalysisTarget }>(

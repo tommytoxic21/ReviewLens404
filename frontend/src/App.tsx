@@ -8,6 +8,8 @@ import {
 } from '@clerk/clerk-react';
 import { targetsApi } from './targetsApi';
 import type { AnalysisTarget } from './targetsApi';
+import SavedPlaces from './components/SavedPlaces';
+import ReviewsList from './components/ReviewsList';
 import './App.css';
 import ReviewQA from './components/ReviewQA';
 
@@ -41,7 +43,7 @@ function Workspace() {
       } catch (err) {
         setActive(null);
         setError(
-          err instanceof Error ? err.message : 'Unable to open this target.',
+          err instanceof Error ? err.message : 'Unable to open this place.',
         );
       } finally {
         setLoading(false);
@@ -62,7 +64,9 @@ function Workspace() {
       if (id) await openTarget(id);
       else setActive(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load targets.');
+      setError(
+        err instanceof Error ? err.message : 'Unable to load your places.',
+      );
     } finally {
       setLoading(false);
     }
@@ -91,7 +95,7 @@ function Workspace() {
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error ? err.message : 'Unable to load targets.',
+            err instanceof Error ? err.message : 'Unable to load your places.',
           );
         }
       } finally {
@@ -150,9 +154,11 @@ function Workspace() {
       setSourceReference('');
       setShowForm(false);
       navigate(created.id);
-      setNotice('Analysis target created successfully.');
+      setNotice('Place saved successfully.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create target.');
+      setError(
+        err instanceof Error ? err.message : 'Could not save this place.',
+      );
     } finally {
       setSaving(false);
     }
@@ -176,31 +182,100 @@ function Workspace() {
     }
   };
 
+  const reviewCount = active?.reviews?.length ?? 0;
+  const averageRating = reviewCount
+    ? (
+        (active?.reviews ?? []).reduce(
+          (sum, review) => sum + review.rating,
+          0,
+        ) / reviewCount
+      ).toFixed(1)
+    : null;
+  const importStatus = processing
+    ? 'processing'
+    : (active?.ingestionStatus ?? 'not-started');
+  const importLabel =
+    importStatus === 'succeeded'
+      ? 'Imported'
+      : importStatus === 'failed'
+        ? 'Import failed'
+        : importStatus === 'processing'
+          ? 'Importing…'
+          : 'Not imported';
+
   return (
     <main className="page">
+      {active && !showForm && (
+        <nav className="dashboard-breadcrumb" aria-label="Breadcrumb">
+          <button type="button" onClick={() => navigate()}>
+            My Places
+          </button>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">{active.name}</span>
+        </nav>
+      )}
       <div className="page-heading">
         <div>
-          <p className="eyebrow">YOUR WORKSPACE</p>
-          <h1>{active ? active.name : 'Analysis targets'}</h1>
+          <p className="eyebrow">
+            {active && !showForm ? 'REVIEW DASHBOARD' : 'MY PLACES'}
+          </p>
+          <h1>
+            {active && !showForm
+              ? active.name
+              : showForm
+                ? 'Add a Place'
+                : 'My Places'}
+          </h1>
           <p className="muted">
-            {active
-              ? 'Manage this review source and its ingestion.'
-              : 'Organize Google Maps listings for review analysis.'}
+            {active && !showForm
+              ? 'Understand what customers are saying, one review at a time.'
+              : showForm
+                ? 'Save a business to start exploring its reviews.'
+                : 'All your saved businesses, ready to explore.'}
           </p>
         </div>
         <div className="actions">
-          <button className="button secondary" onClick={() => navigate()}>
-            All targets
-          </button>
-          <button
-            className="button primary"
-            onClick={() => {
-              navigate();
-              setShowForm(true);
-            }}
-          >
-            + New target
-          </button>
+          {active && !showForm ? (
+            <>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => navigate()}
+              >
+                My places
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                disabled={processing}
+                onClick={() => void ingest()}
+              >
+                {processing ? 'Importing reviews…' : 'Import reviews'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => navigate()}
+              >
+                My places
+              </button>
+              {!showForm && (
+                <button
+                  type="button"
+                  className="button primary"
+                  onClick={() => {
+                    navigate();
+                    setShowForm(true);
+                  }}
+                >
+                  + Add place
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
       {error && (
@@ -213,10 +288,10 @@ function Workspace() {
           {notice}
         </div>
       )}
-      {loading && <p role="status">Loading targets…</p>}
+      {loading && <p role="status">Loading your places…</p>}
       {!loading && showForm && (
         <section className="panel">
-          <h2>Create analysis target</h2>
+          <h2>Add a place</h2>
           <form onSubmit={(event) => void create(event)}>
             <label htmlFor="target-name">Business or location name</label>
             <input
@@ -255,87 +330,97 @@ function Workspace() {
                 disabled={saving}
                 type="submit"
               >
-                {saving ? 'Creating…' : 'Create target'}
+                {saving ? 'Saving…' : 'Save place'}
               </button>
             </div>
           </form>
         </section>
       )}
       {!loading && !showForm && active && (
-        <section className="panel">
-          <p className="eyebrow">TARGET DETAILS</p>
-          <h2>{active.name}</h2>
-          <dl className="details">
-            <dt>Platform</dt>
-            <dd>
-              {active.platform === 'google_maps' || active.platform === 'google'
-                ? 'Google Maps'
-                : active.platform}
-            </dd>
-            <dt>Source URL</dt>
-            <dd className="break-word">
+        <div className="review-dashboard">
+          <section className="dashboard-overview" aria-label="Review overview">
+            <div className="dashboard-source-row">
+              <span className="dashboard-platform">Google Maps reviews</span>
+              <span
+                className={`dashboard-status dashboard-status--${importStatus}`}
+              >
+                <span aria-hidden="true" className="dashboard-status-dot" />
+                {importLabel}
+              </span>
               <a href={active.sourceReference} target="_blank" rel="noreferrer">
-                {active.sourceReference}
+                View source <span aria-hidden="true">↗</span>
               </a>
-            </dd>
-            <dt>Ingestion status</dt>
-            <dd>
-              {active.ingestionStatus ?? 'Not started'}
-              {active.ingestionError && (
-                <span className="ingestion-error">{active.ingestionError}</span>
-              )}
-            </dd>
-          </dl>
-          <button
-            className="button primary"
-            disabled={processing}
-            onClick={() => void ingest()}
-          >
-            {processing ? 'Ingesting reviews…' : 'Ingest from source URL'}
-          </button>
-        </section>
-      )}
-      {!loading && !showForm && active && (
-        <ReviewQA
-          key={active.id}
-          targetName={active.name}
-          onAsk={async (question) =>
-            targetsApi.ask(await token(), active.id, question)
-          }
-        />
+            </div>
+            {active.ingestionError && (
+              <p className="dashboard-ingestion-error" role="alert">
+                Last import: {active.ingestionError}
+              </p>
+            )}
+            <div className="dashboard-metrics">
+              <div className="dashboard-metric">
+                <span
+                  className="dashboard-metric-icon dashboard-metric-icon--rating"
+                  aria-hidden="true"
+                >
+                  ★
+                </span>
+                <div>
+                  <p className="dashboard-metric-label">Average rating</p>
+                  <p className="dashboard-metric-value">
+                    {averageRating ?? '—'}{' '}
+                    <span>{averageRating ? '/ 5' : 'No ratings yet'}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="dashboard-metric">
+                <span className="dashboard-metric-icon" aria-hidden="true">
+                  ▤
+                </span>
+                <div>
+                  <p className="dashboard-metric-label">Imported reviews</p>
+                  <p className="dashboard-metric-value">
+                    {reviewCount.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <div className="dashboard-metric">
+                <span
+                  className="dashboard-metric-icon dashboard-metric-icon--status"
+                  aria-hidden="true"
+                >
+                  ↻
+                </span>
+                <div>
+                  <p className="dashboard-metric-label">Last import status</p>
+                  <p className="dashboard-metric-value dashboard-metric-value--status">
+                    {importLabel}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <ReviewQA
+            key={active.id}
+            targetName={active.name}
+            onAsk={async (question) =>
+              targetsApi.ask(await token(), active.id, question)
+            }
+          />
+
+          <ReviewsList
+            key={active.id}
+            placeName={active.name}
+            reviews={active.reviews ?? []}
+          />
+        </div>
       )}
       {!loading && !showForm && !active && (
-        <section className="panel">
-          <h2>Saved targets</h2>
-          {targets.length === 0 ? (
-            <div className="empty">
-              <h3>No targets yet</h3>
-              <p>Create your first target to start analyzing reviews.</p>
-              <button
-                className="button primary"
-                onClick={() => setShowForm(true)}
-              >
-                Create a target
-              </button>
-            </div>
-          ) : (
-            <div className="target-list">
-              {targets.map((target) => (
-                <button
-                  key={target.id}
-                  className="target-item"
-                  onClick={() => navigate(target.id)}
-                >
-                  <span>
-                    <strong>{target.name}</strong>
-                    <small>Google Maps · {target.sourceReference}</small>
-                  </span>
-                  <span aria-hidden="true">→</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
+        <SavedPlaces
+          targets={targets}
+          onOpen={(id) => navigate(id)}
+          onAdd={() => setShowForm(true)}
+        />
       )}
     </main>
   );

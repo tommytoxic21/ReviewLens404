@@ -26,12 +26,10 @@ describe('S2-010/011/012 review Q&A orchestration', () => {
   });
 
   it('sends only the selected owned target context to the model', async () => {
-    const answer = vi
-      .fn()
-      .mockResolvedValue({
-        status: 'answered',
-        answer: 'Several reviews mention slow service.',
-      });
+    const answer = vi.fn().mockResolvedValue({
+      status: 'answered',
+      answer: 'Several reviews mention slow service.',
+    });
     const model: ReviewQaModel = { answer };
     await expect(
       answerQuestionForTarget(

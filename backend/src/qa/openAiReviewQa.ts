@@ -45,7 +45,7 @@ export class OpenAiReviewQa implements ReviewQaModel {
     private readonly apiKey: string,
     private readonly model = 'gpt-5.4-mini',
     private readonly transport: typeof fetch = fetch,
-  ) { }
+  ) {}
 
   async answer(
     question: string,

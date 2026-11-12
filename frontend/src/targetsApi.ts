@@ -5,6 +5,7 @@ export interface AnalysisTarget {
   sourceReference: string;
   ingestionStatus?: string | null;
   ingestionError?: string | null;
+  rejectedCount?: number;
   reviews?: Review[];
 }
 
@@ -28,6 +29,7 @@ interface ApiAnalysisTarget {
 interface ApiIngestionAttempt {
   status: string;
   errorMessage: string | null;
+  rejectedCount: number;
 }
 
 interface ApiTargetWorkspace {
@@ -53,6 +55,7 @@ function toAnalysisTarget(
     sourceReference: target.sourceUrl,
     ingestionStatus: ingestionAttempt?.status,
     ingestionError: ingestionAttempt?.errorMessage,
+    rejectedCount: ingestionAttempt?.rejectedCount,
   };
 }
 

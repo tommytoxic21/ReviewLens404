@@ -166,23 +166,37 @@ function Workspace() {
 
   const ingest = async () => {
     if (!active) return;
+    const targetId = active.id;
     setProcessing(true);
     setError('');
     setNotice('');
     try {
-      await targetsApi.ingest(await token(), active.id);
+      await targetsApi.ingest(await token(), targetId);
       setNotice('Review ingestion completed successfully.');
-      await openTarget(active.id);
+      await openTarget(targetId);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Could not start ingestion.',
-      );
+      const ingestionError =
+        err instanceof Error ? err.message : 'Could not start ingestion.';
+      setError(ingestionError);
+      try {
+        const refreshed = await targetsApi.get(await token(), targetId);
+        setActive((current) =>
+          current?.id === targetId ? refreshed : current,
+        );
+      } catch (refreshError) {
+        const refreshMessage =
+          refreshError instanceof Error
+            ? refreshError.message
+            : 'Unable to refresh this place.';
+        setError(`${ingestionError} ${refreshMessage}`);
+      }
     } finally {
       setProcessing(false);
     }
   };
 
   const reviewCount = active?.reviews?.length ?? 0;
+  const rejectedCount = active?.rejectedCount ?? 0;
   const averageRating = reviewCount
     ? (
         (active?.reviews ?? []).reduce(
@@ -380,6 +394,17 @@ function Workspace() {
                   <p className="dashboard-metric-label">Imported reviews</p>
                   <p className="dashboard-metric-value">
                     {reviewCount.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <div className="dashboard-metric">
+                <span className="dashboard-metric-icon" aria-hidden="true">
+                  ▤
+                </span>
+                <div>
+                  <p className="dashboard-metric-label">Rejected reviews</p>
+                  <p className="dashboard-metric-value">
+                    {rejectedCount.toLocaleString()}
                   </p>
                 </div>
               </div>

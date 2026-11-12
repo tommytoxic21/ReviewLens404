@@ -60,6 +60,7 @@ describe('App', () => {
       platform: 'google',
       sourceReference: 'https://www.google.com/maps/place/example',
       ingestionStatus: 'succeeded',
+      rejectedCount: 3,
       reviews: [
         {
           id: 'r1',
@@ -90,6 +91,7 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('4.5')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getAllByText('Imported').length).toBeGreaterThan(0);
     expect(screen.getByText('Great food')).toBeInTheDocument();
 
@@ -108,5 +110,42 @@ describe('App', () => {
     expect(
       await screen.findByText('Customers like the food.'),
     ).toBeInTheDocument();
+  });
+
+  it('refreshes the rejected count when ingestion fails after rejecting reviews', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/active-1');
+    const target = {
+      id: 'active-1',
+      name: 'Joe’s Pizza',
+      platform: 'google',
+      sourceReference: 'https://www.google.com/maps/place/example',
+      ingestionStatus: 'succeeded',
+      rejectedCount: 0,
+      reviews: [],
+    };
+    const failedTarget = {
+      ...target,
+      ingestionStatus: 'failed',
+      ingestionError: 'No usable reviews were returned.',
+      rejectedCount: 2,
+    };
+    vi.mocked(targetsApi.list).mockResolvedValue([target]);
+    vi.mocked(targetsApi.get)
+      .mockResolvedValueOnce(target)
+      .mockResolvedValueOnce(failedTarget);
+    vi.mocked(targetsApi.ingest).mockRejectedValue(
+      new Error('No usable reviews were returned.'),
+    );
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Customer Reviews' });
+    fireEvent.click(screen.getByRole('button', { name: 'Import reviews' }));
+
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    expect(
+      screen.getByRole('alert', { name: '' }),
+    ).toHaveTextContent('No usable reviews were returned.');
   });
 });

@@ -88,6 +88,30 @@ Run these inside `frontend/` or `backend/`:
 - Format: `npm run format`, `npm run format:check`
 - Tests: `npm test`
 
+Frontend CI also requires 80% aggregate coverage for lines, functions,
+branches, and statements, and 100% coverage of changed executable TypeScript
+lines in `frontend/src`. Test files, `setupTests.ts`, mock files, and
+non-TypeScript assets are excluded from the changed-code check; non-executable
+lines do not count.
+Run the frontend gate locally from `frontend/` after fetching the target branch:
+
+```powershell
+git fetch origin main
+$env:BASE_SHA = git merge-base HEAD origin/main
+npm run test:changed-coverage
+```
+
+Backend CI applies the same 80% aggregate thresholds and requires 100%
+coverage of changed executable TypeScript lines in `backend/src`. Test files,
+mock files, and non-TypeScript assets are excluded from the changed-code check.
+Run the backend gate locally from `backend/` after fetching the target branch:
+
+```powershell
+git fetch origin main
+$env:BASE_SHA = git merge-base HEAD origin/main
+npm run test:changed-coverage
+```
+
 Backend database integration tests require `TEST_DATABASE_URL`. The test
 database must be separate from the development database because the tests
 delete their own AnalysisTarget records between cases. Provider tests use

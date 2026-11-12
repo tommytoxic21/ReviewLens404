@@ -30,31 +30,39 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
-      - run: npm run format:check
       - run: npm run lint
       - run: npm run build
-      - run: npm test
+      - run: npm run test:changed-coverage
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+      - run: npm run format:check
 
   frontend:
     runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npm run format:check
       - run: npm run lint
       - run: npm run build
-      - run: npm test
+      - run: npm run test:changed-coverage
+      - run: npm run format:check

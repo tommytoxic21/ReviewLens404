@@ -4,6 +4,7 @@ node_modules/
 # build output
 dist/
 build/
+coverage/
 
 # environment files (keep the example template)
 .env

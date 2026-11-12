@@ -11,6 +11,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:changed-coverage": "npm run test:coverage && node --test ../scripts/check-changed-coverage.node.mjs && node ../scripts/check-changed-coverage.mjs",
     "build": "tsc"
   },
   "keywords": [],
@@ -28,6 +30,7 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
+    "@vitest/coverage-v8": "^5.1.0",
     "drizzle-kit": "^0.31.11",
     "eslint": "^10.13.0",
     "prettier": "^3.9.10",

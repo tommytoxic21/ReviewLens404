@@ -36,7 +36,9 @@ vi.mock('./targetsApi', () => ({
   },
 }));
 
-function makeTarget(overrides: Partial<AnalysisTarget> = {}): AnalysisTarget {
+function makeTarget(
+  overrides: Partial<AnalysisTarget> = {},
+): AnalysisTarget & { reviews: NonNullable<AnalysisTarget['reviews']> } {
   return {
     id: 'target-1',
     name: 'Joe’s Pizza',

@@ -56,8 +56,7 @@ describe('targetsApi', () => {
             id: 'target-1',
             entityName: 'ReviewLens Coffee',
             platform: 'google',
-            sourceUrl:
-              'https://www.google.com/maps/place/ReviewLens+Coffee',
+            sourceUrl: 'https://www.google.com/maps/place/ReviewLens+Coffee',
           },
           latestIngestion: {
             status: 'succeeded',
@@ -69,11 +68,12 @@ describe('targetsApi', () => {
       ),
     );
 
-    await expect(targetsApi.get('verified-session-token', 'target-1')).resolves
-      .toMatchObject({
-        id: 'target-1',
-        rejectedCount: 3,
-      });
+    await expect(
+      targetsApi.get('verified-session-token', 'target-1'),
+    ).resolves.toMatchObject({
+      id: 'target-1',
+      rejectedCount: 3,
+    });
   });
 
   it('translates the UI form to the fixed Google backend contract', async () => {

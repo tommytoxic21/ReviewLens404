@@ -135,7 +135,7 @@ export const targetsApi = {
     return toAnalysisTarget(response.target);
   },
   ingest: (token: string, id: string) =>
-    request<{ attempt: ApiIngestionAttempt}>(
+    request<{ attempt: ApiIngestionAttempt }>(
       `/api/analysis-targets/${encodeURIComponent(id)}/ingestions`,
       token,
       {

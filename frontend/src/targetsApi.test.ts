@@ -131,4 +131,134 @@ describe('targetsApi', () => {
       }),
     ).rejects.toThrow('Source URL is required.');
   });
+
+  it('loads a target workspace and maps its import status and reviews', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        target: {
+          id: 'target/1',
+          entityName: 'ReviewLens Coffee',
+          platform: 'google',
+          sourceUrl: 'https://maps.google.com/example',
+        },
+        latestIngestion: {
+          status: 'failed',
+          errorMessage: 'Provider unavailable.',
+        },
+        reviews: [
+          {
+            id: 'review-1',
+            reviewText: 'Great coffee.',
+            rating: 5,
+            reviewerName: 'Sam',
+            reviewedAt: null,
+            reviewUrl: null,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(targetsApi.get('token', 'target/1')).resolves.toMatchObject({
+      id: 'target/1',
+      name: 'ReviewLens Coffee',
+      ingestionStatus: 'failed',
+      ingestionError: 'Provider unavailable.',
+      reviews: [{ id: 'review-1', reviewText: 'Great coffee.' }],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/analysis-targets/target%2F1',
+      expect.objectContaining({
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer token',
+        },
+      }),
+    );
+  });
+
+  it('defaults missing workspace reviews to an empty list', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          target: {
+            id: 'target-1',
+            entityName: 'ReviewLens Coffee',
+            platform: 'google',
+            sourceUrl: 'https://maps.google.com/example',
+          },
+          latestIngestion: null,
+        }),
+      ),
+    );
+
+    await expect(targetsApi.get('token', 'target-1')).resolves.toMatchObject({
+      ingestionStatus: undefined,
+      ingestionError: undefined,
+      reviews: [],
+    });
+  });
+
+  it('submits ingestion and review questions to the selected target', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          attempt: { status: 'succeeded', errorMessage: null },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ answer: 'Customers like it.' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(targetsApi.ingest('token', 'target/1')).resolves.toEqual({
+      attempt: { status: 'succeeded', errorMessage: null },
+    });
+    await expect(
+      targetsApi.ask('token', 'target/1', 'What do customers like?'),
+    ).resolves.toBe('Customers like it.');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/analysis-targets/target%2F1/ingestions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/analysis-targets/target%2F1/questions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ question: 'What do customers like?' }),
+      }),
+    );
+  });
+
+  it('uses the server error when validation issues are absent', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ error: 'The target could not be loaded.' }, 500),
+        ),
+    );
+
+    await expect(targetsApi.list('token')).rejects.toThrow(
+      'The target could not be loaded.',
+    );
+  });
+
+  it('falls back to the HTTP status when the error response is not JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('not json', { status: 502 })),
+    );
+
+    await expect(targetsApi.list('token')).rejects.toThrow(
+      'Request failed (502).',
+    );
+  });
 });

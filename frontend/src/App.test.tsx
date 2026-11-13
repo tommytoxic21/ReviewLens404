@@ -314,7 +314,7 @@ describe('App', () => {
       .mockResolvedValueOnce(beforeImport)
       .mockResolvedValueOnce(afterImport);
     vi.mocked(targetsApi.ingest).mockResolvedValue({
-      attempt: { status: 'succeeded', errorMessage: null },
+      attempt: { status: 'succeeded', errorMessage: null, rejectedCount: 0 },
     });
 
     render(<App />);

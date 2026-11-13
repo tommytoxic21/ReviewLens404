@@ -36,6 +36,7 @@ describe('targetsApi', () => {
         sourceReference: 'https://www.google.com/maps/place/ReviewLens+Coffee',
         ingestionStatus: undefined,
         ingestionError: undefined,
+        rejectedCount: undefined,
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith('/api/analysis-targets', {
@@ -43,6 +44,35 @@ describe('targetsApi', () => {
         'Content-Type': 'application/json',
         Authorization: 'Bearer verified-session-token',
       },
+    });
+  });
+
+  it('maps the latest ingestion rejected count for a target', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          target: {
+            id: 'target-1',
+            entityName: 'ReviewLens Coffee',
+            platform: 'google',
+            sourceUrl: 'https://www.google.com/maps/place/ReviewLens+Coffee',
+          },
+          latestIngestion: {
+            status: 'succeeded',
+            errorMessage: null,
+            rejectedCount: 3,
+          },
+          reviews: [],
+        }),
+      ),
+    );
+
+    await expect(
+      targetsApi.get('verified-session-token', 'target-1'),
+    ).resolves.toMatchObject({
+      id: 'target-1',
+      rejectedCount: 3,
     });
   });
 

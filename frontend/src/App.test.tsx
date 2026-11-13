@@ -71,6 +71,7 @@ describe('App', () => {
     const target = makeTarget({
       id: 'active-1',
       ingestionStatus: 'succeeded',
+      rejectedCount: 3,
       reviews: [
         {
           id: 'r1',
@@ -101,6 +102,7 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('4.5')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getAllByText('Imported').length).toBeGreaterThan(0);
     expect(screen.getByText('Great food')).toBeInTheDocument();
 
@@ -274,7 +276,7 @@ describe('App', () => {
       .mockResolvedValueOnce(beforeImport)
       .mockResolvedValueOnce(afterImport);
     vi.mocked(targetsApi.ingest).mockResolvedValue({
-      attempt: { status: 'succeeded', errorMessage: null },
+      attempt: { status: 'succeeded', errorMessage: null, rejectedCount: 0 },
     });
 
     render(<App />);
@@ -306,6 +308,31 @@ describe('App', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Review provider unavailable.',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Import reviews' }),
+    ).toBeEnabled();
+  });
+
+  it('uses the refresh fallback when ingestion and refresh reject non-Errors', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/target-1');
+    const target = makeTarget();
+    vi.mocked(targetsApi.list).mockResolvedValue([target]);
+    vi.mocked(targetsApi.get)
+      .mockResolvedValueOnce(target)
+      .mockRejectedValueOnce('Refresh failed.');
+    vi.mocked(targetsApi.ingest).mockRejectedValue(
+      new Error('Review provider unavailable.'),
+    );
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Import reviews' }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Review provider unavailable. Unable to refresh this place.',
     );
     expect(
       screen.getByRole('button', { name: 'Import reviews' }),

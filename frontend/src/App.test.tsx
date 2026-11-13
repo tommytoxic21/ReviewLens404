@@ -314,4 +314,29 @@ describe('App', () => {
       screen.getByRole('button', { name: 'Import reviews' }),
     ).toBeEnabled();
   });
+
+  it('uses the refresh fallback when ingestion and refresh reject non-Errors', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/target-1');
+    const target = makeTarget();
+    vi.mocked(targetsApi.list).mockResolvedValue([target]);
+    vi.mocked(targetsApi.get)
+      .mockResolvedValueOnce(target)
+      .mockRejectedValueOnce('Refresh failed.');
+    vi.mocked(targetsApi.ingest).mockRejectedValue(
+      new Error('Review provider unavailable.'),
+    );
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Import reviews' }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Review provider unavailable. Unable to refresh this place.',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Import reviews' }),
+    ).toBeEnabled();
+  });
 });

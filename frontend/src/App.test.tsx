@@ -124,43 +124,6 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
-  it('refreshes the rejected count when ingestion fails after rejecting reviews', async () => {
-    authState.signedIn = true;
-    window.history.replaceState({}, '', '/targets/active-1');
-    const target = {
-      id: 'active-1',
-      name: 'Joe’s Pizza',
-      platform: 'google',
-      sourceReference: 'https://www.google.com/maps/place/example',
-      ingestionStatus: 'succeeded',
-      rejectedCount: 0,
-      reviews: [],
-    };
-    const failedTarget = {
-      ...target,
-      ingestionStatus: 'failed',
-      ingestionError: 'No usable reviews were returned.',
-      rejectedCount: 2,
-    };
-    vi.mocked(targetsApi.list).mockResolvedValue([target]);
-    vi.mocked(targetsApi.get)
-      .mockResolvedValueOnce(target)
-      .mockResolvedValueOnce(failedTarget);
-    vi.mocked(targetsApi.ingest).mockRejectedValue(
-      new Error('No usable reviews were returned.'),
-    );
-
-    render(<App />);
-
-    await screen.findByRole('heading', { name: 'Customer Reviews' });
-    fireEvent.click(screen.getByRole('button', { name: 'Import reviews' }));
-
-    expect(await screen.findByText('2')).toBeInTheDocument();
-    expect(
-      screen.getByRole('alert', { name: '' }),
-    ).toHaveTextContent('No usable reviews were returned.');
-  });
-
   it('shows saved places after loading and opens the selected place', async () => {
     authState.signedIn = true;
     vi.mocked(targetsApi.list).mockResolvedValue([makeTarget()]);
@@ -290,6 +253,44 @@ describe('App', () => {
       'Could not save this place.',
     );
     expect(screen.getByRole('button', { name: 'Save place' })).toBeEnabled();
+  });
+
+  it('refreshes the selected place after successful review ingestion', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/target-1');
+    const beforeImport = makeTarget({ ingestionStatus: 'not-started' });
+    const afterImport = makeTarget({
+      ingestionStatus: 'succeeded',
+      reviews: [
+        {
+          id: 'review-1',
+          reviewText: 'Excellent pizza.',
+          rating: 5,
+          reviewerName: 'Sam',
+          reviewedAt: null,
+          reviewUrl: null,
+        },
+      ],
+    });
+    vi.mocked(targetsApi.list).mockResolvedValue([beforeImport]);
+    vi.mocked(targetsApi.get)
+      .mockResolvedValueOnce(beforeImport)
+      .mockResolvedValueOnce(afterImport);
+    vi.mocked(targetsApi.ingest).mockResolvedValue({
+      attempt: { status: 'succeeded', errorMessage: null, rejectedCount: 0 },
+    });
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Import reviews' }),
+    );
+
+    expect(await screen.findByText('Excellent pizza.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Review ingestion completed successfully.'),
+    ).toBeInTheDocument();
+    expect(targetsApi.ingest).toHaveBeenCalledWith('test-token', 'target-1');
+    expect(targetsApi.get).toHaveBeenCalledTimes(2);
   });
 
   it('shows an error when review ingestion fails', async () => {

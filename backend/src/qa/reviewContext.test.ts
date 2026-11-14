@@ -44,6 +44,7 @@ describe('S2-010 owned review context', () => {
     requireOwnedTarget.mockResolvedValue({
       id: targetId,
       entityName: 'Owner Coffee',
+      platform: 'google',
     });
   });
 
@@ -58,6 +59,7 @@ describe('S2-010 owned review context', () => {
     expect(context).toEqual({
       targetId,
       targetName: 'Owner Coffee',
+      targetPlatform: 'google',
       totalReviewCount: 1,
       reviews: [
         {

@@ -19,6 +19,7 @@ export interface ReviewEvidence {
 export interface ReviewContext {
   targetId: string;
   targetName: string;
+  targetPlatform: string;
   totalReviewCount: number;
   reviews: ReviewEvidence[];
 }
@@ -63,6 +64,7 @@ export async function buildReviewContext(
   return {
     targetId: target.id,
     targetName: target.entityName,
+    targetPlatform: target.platform,
     totalReviewCount: storedReviews.length,
     reviews: selected,
   };

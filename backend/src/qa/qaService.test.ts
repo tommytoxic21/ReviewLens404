@@ -13,6 +13,7 @@ const targetId = '11111111-1111-4111-8111-111111111111';
 const evidence = {
   targetId,
   targetName: 'Target A',
+  targetPlatform: 'google',
   totalReviewCount: 2,
   reviews: [
     { id: 'review-1', rating: 2, text: 'Slow service', reviewedAt: null },

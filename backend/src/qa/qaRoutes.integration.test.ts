@@ -29,6 +29,7 @@ import {
   type DatabaseConnection,
 } from '../db/client.js';
 import { analysisTargets, reviews } from '../db/schema.js';
+import { ReviewQaError } from './qaService.js';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (!testDatabaseUrl)
@@ -152,16 +153,36 @@ describe('S2-010..012 authenticated Q&A database integration', () => {
     expect(a.statusCode).toBe(200);
     expect(a.json().answer).toContain('battery life complaint');
     expect(a.json().answer).not.toContain('customer service');
+    expect(answer.mock.calls[0]?.[1]).toMatchObject({
+      targetId: firstTargetId,
+      targetName: 'First Coffee',
+      totalReviewCount: 1,
+      reviews: [
+        expect.objectContaining({ text: 'Unique battery life complaint' }),
+      ],
+    });
 
     const b = await ask(secondTargetId);
     expect(b.statusCode).toBe(200);
     expect(b.json().answer).toContain('friendly customer service');
     expect(b.json().answer).not.toContain('battery life');
-    expect(JSON.stringify(answer.mock.calls)).not.toContain(
+    expect(answer.mock.calls[1]?.[1]).toMatchObject({
+      targetId: secondTargetId,
+      targetName: 'Second Coffee',
+      totalReviewCount: 1,
+      reviews: [
+        expect.objectContaining({
+          text: 'Unique friendly customer service praise',
+        }),
+      ],
+    });
+    const firstContext = JSON.stringify(answer.mock.calls[0]?.[1]);
+    const secondContext = JSON.stringify(answer.mock.calls[1]?.[1]);
+    expect(firstContext).not.toContain('Unique friendly customer service');
+    expect(secondContext).not.toContain('Unique battery life');
+    expect(`${firstContext}${secondContext}`).not.toContain(
       'PRIVATE USER B SECRET',
     );
-    expect(answer.mock.calls[0]?.[1].targetId).toBe(firstTargetId);
-    expect(answer.mock.calls[1]?.[1].targetId).toBe(secondTargetId);
   });
 
   it('rejects cross-user access and never sends that user review data to OpenAI', async () => {
@@ -206,5 +227,20 @@ describe('S2-010..012 authenticated Q&A database integration', () => {
       status: 'insufficient_evidence',
       answer: 'Reviews do not mention parking safety.',
     });
+  });
+
+  it('returns a controlled provider failure without claiming an answer', async () => {
+    answer.mockRejectedValue(
+      new ReviewQaError(
+        'The AI service could not answer the question right now.',
+        502,
+      ),
+    );
+    const response = await ask(firstTargetId);
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({
+      error: 'The AI service could not answer the question right now.',
+    });
+    expect(answer).toHaveBeenCalledOnce();
   });
 });

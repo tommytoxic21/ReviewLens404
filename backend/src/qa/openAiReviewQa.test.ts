@@ -5,6 +5,7 @@ import type { ReviewContext } from './reviewContext.js';
 const evidence: ReviewContext = {
   targetId: 'target-a',
   targetName: 'Coffee Shop',
+  targetPlatform: 'google',
   totalReviewCount: 2,
   reviews: [
     { id: 'review-1', rating: 5, text: 'Excellent coffee', reviewedAt: null },
@@ -52,6 +53,8 @@ describe('S2-011/012 OpenAI Responses adapter', () => {
     expect(body.text.format.strict).toBe(true);
     const prompt = JSON.parse(body.input);
     expect(prompt.target.id).toBe('target-a');
+    expect(prompt.target.name).toBe('Coffee Shop');
+    expect(prompt.target.platform).toBe('google');
     expect(prompt.reviewSubset[0].text).toBe('Excellent coffee');
     expect(prompt.question).toBe('What do customers like?');
   });

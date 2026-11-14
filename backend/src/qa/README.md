@@ -64,3 +64,18 @@ then ask a question from the target details page.
 
 Automated tests use a mocked Q&A model and mocked OpenAI HTTP calls. No real
 OpenAI requests or API charges are incurred by tests.
+
+## Scope-guard evaluation (S2-004)
+
+`scopeGuardEvaluation.test.ts` keeps a small deterministic set of synthetic
+review questions covering supported answers, missing evidence, general
+knowledge, another entity, and another platform. Each case records its active
+target, platform, review evidence, expected behavior, and rationale. The
+evaluation checks the scope instructions and evidence/question sent to the
+mocked Responses API, then checks status and behavioral signals rather than an
+exact answer sentence. It uses no credentials, live model calls, or network
+access.
+
+Run it from `backend/` with `npm test -- src/qa/scopeGuardEvaluation.test.ts`.
+The controlled provider responses verify the prompt and adapter contract for
+these cases; they do not prove how a live model will answer them.

@@ -425,13 +425,27 @@ function Workspace() {
             </div>
           </section>
 
-          <ReviewQA
-            key={active.id}
-            targetName={active.name}
-            onAsk={async (question) =>
-              targetsApi.ask(await token(), active.id, question)
-            }
-          />
+          {reviewCount > 0 ? (
+            <ReviewQA
+              key={active.id}
+              targetName={active.name}
+              onAsk={async (question) =>
+                targetsApi.ask(await token(), active.id, question)
+              }
+            />
+          ) : (
+            <section
+              className="panel review-qa"
+              aria-label="ReviewLens unavailable"
+            >
+              <h2>Ask ReviewLens</h2>
+              <p>No reviews have been ingested for {active.name}.</p>
+              <p className="muted">
+                Use <strong>Import reviews</strong> above to complete ingestion
+                before asking ReviewLens questions.
+              </p>
+            </section>
+          )}
 
           <ReviewsList
             key={active.id}

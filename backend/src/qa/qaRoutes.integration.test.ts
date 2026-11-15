@@ -59,6 +59,7 @@ describe('S2-010..012 authenticated Q&A database integration', () => {
   beforeEach(async () => {
     await connection.db.delete(analysisTargets);
     answer.mockReset();
+    reviewSource.fetchReviews.mockReset();
     answer.mockImplementation(
       async (
         _question: string,
@@ -200,20 +201,82 @@ describe('S2-010..012 authenticated Q&A database integration', () => {
     expect(answer).not.toHaveBeenCalled();
   });
 
-  it('declines empty targets without invoking OpenAI', async () => {
-    const [empty] = await connection.db
-      .insert(analysisTargets)
-      .values({
-        ownerId: 'user-qa-owner',
-        entityName: 'Empty Coffee',
-        platform: 'google',
-        sourceUrl: 'https://maps.google.com/empty',
-      })
-      .returning();
-    const response = await ask(empty!.id);
-    expect(response.statusCode).toBe(409);
-    expect(response.json().error).toMatch(/No reviews/);
-    expect(answer).not.toHaveBeenCalled();
+  it.each(['not-started', 'failed', 'empty-result'])(
+    'S2-020: declines an empty target after %s ingestion without invoking OpenAI',
+    async (ingestionState) => {
+      const [empty] = await connection.db
+        .insert(analysisTargets)
+        .values({
+          ownerId: 'user-qa-owner',
+          entityName: 'Empty Coffee',
+          platform: 'google',
+          sourceUrl: 'https://maps.google.com/empty',
+        })
+        .returning();
+      if (ingestionState !== 'not-started') {
+        if (ingestionState === 'failed') {
+          reviewSource.fetchReviews.mockRejectedValue(
+            new Error('Provider unavailable'),
+          );
+        } else {
+          reviewSource.fetchReviews.mockResolvedValue([]);
+        }
+        const ingestion = await app.inject({
+          method: 'POST',
+          url: `/api/analysis-targets/${empty!.id}/ingestions`,
+          headers: owner,
+          payload: {},
+        });
+        expect(ingestion.statusCode).toBe(422);
+      }
+      const workspace = await app.inject({
+        method: 'GET',
+        url: `/api/analysis-targets/${empty!.id}`,
+        headers: owner,
+      });
+      expect(workspace.statusCode).toBe(200);
+      expect(workspace.json().reviews).toEqual([]);
+      expect(workspace.json().latestIngestion?.status ?? null).toBe(
+        ingestionState === 'not-started' ? null : 'failed',
+      );
+      const response = await ask(empty!.id);
+      expect(response.statusCode).toBe(409);
+      expect(response.json().error).toMatch(/No reviews/);
+      expect(response.json().error).toMatch(/Ingest reviews before asking/);
+      expect(response.json()).not.toHaveProperty('answer');
+      expect(answer).not.toHaveBeenCalled();
+    },
+  );
+
+  it('S2-020: retains the stored dataset for Q&A after a failed re-import', async () => {
+    reviewSource.fetchReviews.mockRejectedValue(
+      new Error('Provider unavailable'),
+    );
+    const ingestion = await app.inject({
+      method: 'POST',
+      url: `/api/analysis-targets/${firstTargetId}/ingestions`,
+      headers: owner,
+      payload: {},
+    });
+    expect(ingestion.statusCode).toBe(422);
+    const workspace = await app.inject({
+      method: 'GET',
+      url: `/api/analysis-targets/${firstTargetId}`,
+      headers: owner,
+    });
+    expect(workspace.json().latestIngestion.status).toBe('failed');
+    expect(workspace.json().reviews).toHaveLength(1);
+    const response = await ask(firstTargetId);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      status: 'answered',
+      reviewsUsed: 1,
+      totalReviews: workspace.json().reviews.length,
+    });
+    expect(answer).toHaveBeenCalledOnce();
+    expect(answer.mock.calls[0]?.[1].reviews[0].text).toBe(
+      workspace.json().reviews[0].reviewText,
+    );
   });
 
   it('returns insufficient evidence from a controlled model response', async () => {

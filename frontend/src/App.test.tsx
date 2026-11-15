@@ -65,63 +65,96 @@ describe('App', () => {
     expect(screen.getByText(/understand your reviews/i)).toBeInTheDocument();
   });
 
-  it('shows persisted review metrics and sends questions for the selected place', async () => {
-    authState.signedIn = true;
-    window.history.replaceState({}, '', '/targets/active-1');
-    const target = makeTarget({
-      id: 'active-1',
-      ingestionStatus: 'succeeded',
-      rejectedCount: 3,
-      reviews: [
-        {
-          id: 'r1',
-          reviewText: 'Great food',
-          rating: 5,
-          reviewerName: 'Sam',
-          reviewedAt: null,
-          reviewUrl: null,
-        },
-        {
-          id: 'r2',
-          reviewText: 'Long wait',
-          rating: 4,
-          reviewerName: 'Alex',
-          reviewedAt: null,
-          reviewUrl: null,
-        },
-      ],
-    });
-    vi.mocked(targetsApi.list).mockResolvedValue([target]);
-    vi.mocked(targetsApi.get).mockResolvedValue(target);
-    vi.mocked(targetsApi.ask).mockResolvedValue('Customers like the food.');
+  it.each([
+    ['succeeded', 'Imported'],
+    ['failed', 'Import failed'],
+  ])(
+    'uses persisted reviews for Q&A when the last import %s',
+    async (ingestionStatus, importLabel) => {
+      authState.signedIn = true;
+      window.history.replaceState({}, '', '/targets/active-1');
+      const target = makeTarget({
+        id: 'active-1',
+        ingestionStatus,
+        rejectedCount: 3,
+        reviews: [
+          {
+            id: 'r1',
+            reviewText: 'Great food',
+            rating: 5,
+            reviewerName: 'Sam',
+            reviewedAt: null,
+            reviewUrl: null,
+          },
+          {
+            id: 'r2',
+            reviewText: 'Long wait',
+            rating: 4,
+            reviewerName: 'Alex',
+            reviewedAt: null,
+            reviewUrl: null,
+          },
+        ],
+      });
+      vi.mocked(targetsApi.list).mockResolvedValue([target]);
+      vi.mocked(targetsApi.get).mockResolvedValue(target);
+      vi.mocked(targetsApi.ask).mockResolvedValue('Customers like the food.');
 
-    render(<App />);
+      render(<App />);
 
-    expect(
-      await screen.findByRole('heading', { name: 'Customer Reviews' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('4.5')).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
-    expect(screen.getAllByText('Imported').length).toBeGreaterThan(0);
-    expect(screen.getByText('Great food')).toBeInTheDocument();
+      expect(
+        await screen.findByRole('heading', { name: 'Customer Reviews' }),
+      ).toBeInTheDocument();
+      expect(screen.getByText('4.5')).toBeInTheDocument();
+      expect(screen.getByText('2')).toBeInTheDocument();
+      expect(screen.getByText('3')).toBeInTheDocument();
+      expect(screen.getAllByText(importLabel).length).toBeGreaterThan(0);
+      expect(screen.getByText('Great food')).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'How is the service?' }),
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Ask ReviewLens' }));
-
-    await waitFor(() => {
-      expect(targetsApi.ask).toHaveBeenCalledWith(
-        'test-token',
-        'active-1',
-        'How is the service?',
+      fireEvent.click(
+        screen.getByRole('button', { name: 'How is the service?' }),
       );
-    });
-    expect(
-      await screen.findByText('Customers like the food.'),
-    ).toBeInTheDocument();
-  });
+      fireEvent.click(screen.getByRole('button', { name: 'Ask ReviewLens' }));
+
+      await waitFor(() => {
+        expect(targetsApi.ask).toHaveBeenCalledWith(
+          'test-token',
+          'active-1',
+          'How is the service?',
+        );
+      });
+      expect(
+        await screen.findByText('Customers like the food.'),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each([undefined, 'failed', 'processing', 'succeeded'])(
+    'withholds Q&A for an empty dataset regardless of ingestion status (%s)',
+    async (ingestionStatus) => {
+      authState.signedIn = true;
+      window.history.replaceState({}, '', '/targets/target-1');
+      const target = makeTarget({ ingestionStatus });
+      vi.mocked(targetsApi.list).mockResolvedValue([target]);
+      vi.mocked(targetsApi.get).mockResolvedValue(target);
+
+      render(<App />);
+
+      const emptyState = await screen.findByRole('region', {
+        name: 'ReviewLens unavailable',
+      });
+      expect(emptyState).toHaveTextContent(/No reviews have been ingested/);
+      expect(emptyState).toHaveTextContent(/complete ingestion before asking/);
+      expect(screen.queryByLabelText(/your question/i)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Ask ReviewLens' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Import reviews' }),
+      ).toBeEnabled();
+      expect(targetsApi.ask).not.toHaveBeenCalled();
+    },
+  );
 
   it('shows saved places after loading and opens the selected place', async () => {
     authState.signedIn = true;
@@ -280,6 +313,9 @@ describe('App', () => {
     });
 
     render(<App />);
+    expect(
+      await screen.findByRole('region', { name: 'ReviewLens unavailable' }),
+    ).toBeInTheDocument();
     fireEvent.click(
       await screen.findByRole('button', { name: 'Import reviews' }),
     );
@@ -290,6 +326,10 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(targetsApi.ingest).toHaveBeenCalledWith('test-token', 'target-1');
     expect(targetsApi.get).toHaveBeenCalledTimes(2);
+    expect(
+      screen.queryByRole('region', { name: 'ReviewLens unavailable' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/your question/i)).toBeEnabled();
   });
 
   it('shows an error when review ingestion fails', async () => {
@@ -312,6 +352,11 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Import reviews' }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole('region', { name: 'ReviewLens unavailable' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/your question/i)).not.toBeInTheDocument();
+    expect(targetsApi.ask).not.toHaveBeenCalled();
   });
 
   it('uses the refresh fallback when ingestion and refresh reject non-Errors', async () => {

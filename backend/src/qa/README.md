@@ -1,4 +1,4 @@
-# Sprint 2 review-grounded Q&A (S2-010, S2-011, S2-012)
+# Sprint 2 review-grounded Q&A (S2-010, S2-011, S2-012, S2-014)
 
 ## Endpoint
 
@@ -38,8 +38,18 @@ follow commands embedded in reviews. The OpenAI API request sets `store: false`.
 
 The service uses OpenAI's **Responses API** with strict structured output:
 `{ status: 'answered' | 'insufficient_evidence', answer: string }`.
-It will not fill in gaps from general knowledge. Scope-guard evaluation beyond
-these rules remains part of S2-013..S2-016.
+It will not fill in gaps from general knowledge.
+
+**General-knowledge refusals (S2-014):** Scope enforcement is driven by
+`REVIEW_QA_INSTRUCTIONS` and the server-supplied active target and review evidence,
+without keyword matching or blacklists. Unrelated knowledge questions and tasks
+use the existing `insufficient_evidence` status with a brief scope explanation
+and an invitation to ask about the active reviews. Refusals must not imply the
+unrelated request was analyzed or outside information was checked. Questions
+about what reviewers report remain answerable when supported by the dataset.
+The deterministic scope-guard evaluation covers the four S2-014 examples,
+scope explanations, prompt policy, and supported review questions using mocked
+responses; it does not establish live model behavior.
 
 ## Configuration and local use
 
@@ -65,7 +75,7 @@ then ask a question from the target details page.
 Automated tests use a mocked Q&A model and mocked OpenAI HTTP calls. No real
 OpenAI requests or API charges are incurred by tests.
 
-## Scope-guard evaluation (S2-004)
+## Scope-guard evaluation (S2-004, S2-014)
 
 `scopeGuardEvaluation.test.ts` keeps a small deterministic set of synthetic
 review questions covering supported answers, missing evidence, general

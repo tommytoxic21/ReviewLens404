@@ -124,7 +124,7 @@ const cases: ScopeGuardCase[] = [
       forbiddenSignals: ['sunny', 'rainy', 'temperature'],
     },
     controlledAnswer:
-      "I cannot provide today's weather from the active target's reviews; they contain no weather information.",
+      "ReviewLens can only answer questions about the active target's reviews. Today's weather is outside that scope; you can ask about customer feedback instead.",
     rationale:
       'Current weather is unrelated to analysis of the active review dataset.',
   },
@@ -143,6 +143,38 @@ const cases: ScopeGuardCase[] = [
       "I can analyze Northstar Coffee's supplied reviews, but writing a Python sorting algorithm is outside that review-analysis scope.",
     rationale:
       'The request is a general programming task, not a question answerable from reviews.',
+  },
+  {
+    id: 'general-president',
+    category: 'general-knowledge',
+    activeTarget: { name: 'Northstar Coffee', platform: 'google' },
+    reviewEvidence,
+    question: 'Who is the President of the United States?',
+    expectedBehavior: {
+      status: 'insufficient_evidence',
+      requiredSignals: ['reviews', 'feedback'],
+      forbiddenSignals: ['the president is'],
+    },
+    controlledAnswer:
+      "ReviewLens is limited to Northstar Coffee's active reviews and cannot answer general political questions. Ask about customer feedback in this dataset.",
+    rationale:
+      'Identifying a political officeholder is unrelated to the active reviews.',
+  },
+  {
+    id: 'general-restaurants',
+    category: 'general-knowledge',
+    activeTarget: { name: 'Northstar Coffee', platform: 'google' },
+    reviewEvidence,
+    question: 'What are the best restaurants in New York?',
+    expectedBehavior: {
+      status: 'insufficient_evidence',
+      requiredSignals: ['reviews', 'dataset'],
+      forbiddenSignals: ['best restaurants are'],
+    },
+    controlledAnswer:
+      "Citywide restaurant recommendations are outside ReviewLens's scope. I can help you explore Northstar Coffee's supplied reviews instead.",
+    rationale:
+      "Broad restaurant recommendations cannot be grounded in one active target's reviews.",
   },
   {
     id: 'another-entity-direct',
@@ -237,7 +269,7 @@ function includesAny(text: string, signals: string[]): boolean {
   return signals.some((signal) => normalized.includes(signal.toLowerCase()));
 }
 
-describe('S2-004 deterministic scope-guard evaluation', () => {
+describe('S2-004/S2-014 deterministic scope-guard evaluation', () => {
   it('keeps at least two examples in every required category', () => {
     const categories: ScopeGuardCase['category'][] = [
       'in-scope-answerable',
@@ -249,14 +281,16 @@ describe('S2-004 deterministic scope-guard evaluation', () => {
 
     for (const category of categories) {
       expect(
-        cases.filter((evaluationCase) => evaluationCase.category === category),
-      ).toHaveLength(2);
+        cases.filter((evaluationCase) => evaluationCase.category === category)
+          .length,
+      ).toBeGreaterThanOrEqual(2);
     }
   });
 
   it.each(cases)(
     '$id ($category): $question',
     async ({
+      category,
       activeTarget,
       reviewEvidence: reviews,
       question,
@@ -288,6 +322,16 @@ describe('S2-004 deterministic scope-guard evaluation', () => {
       for (const signal of expectedBehavior.forbiddenSignals) {
         expect(result.answer.toLowerCase()).not.toContain(signal.toLowerCase());
       }
+      if (category === 'general-knowledge') {
+        // Require both a scope boundary and a reference to the active reviews,
+        // without fixing the refusal to a particular sentence.
+        expect(result.answer).toMatch(/\b(only|limited to|outside)\b/i);
+        expect(result.answer).toMatch(/\breviews?\b/i);
+        expect(
+          includesAny(result.answer, ['active target', activeTarget.name]),
+        ).toBe(true);
+        expect(result.answer).not.toMatch(/\bI (?:checked|analyzed)\b/i);
+      }
 
       const [url, init] = transport.mock.calls[0]!;
       expect(String(url)).toBe('https://api.openai.com/v1/responses');
@@ -312,6 +356,20 @@ describe('S2-004 deterministic scope-guard evaluation', () => {
       );
       expect(request.instructions).toContain(
         'If the question is unrelated to the active target',
+      );
+      // S2-BR-015/016/019/020/021: the real prompt must define the policy;
+      // mocked refusals alone cannot verify prompt-driven enforcement.
+      expect(request.instructions).toMatch(
+        /general world knowledge.*decline.*"insufficient_evidence"/i,
+      );
+      expect(request.instructions).toMatch(
+        /scope refusal.*explain.*only.*active review dataset/i,
+      );
+      expect(request.instructions).toMatch(
+        /do not imply.*unrelated request was analyzed.*outside information was checked/i,
+      );
+      expect(request.instructions).toMatch(
+        /reviewers report remain in scope.*supported.*evidence/i,
       );
       expect(promptInput).toEqual({
         target: {

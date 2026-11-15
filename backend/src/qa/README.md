@@ -47,8 +47,9 @@ use the existing `insufficient_evidence` status with a brief scope explanation
 and an invitation to ask about the active reviews. Refusals must not imply the
 unrelated request was analyzed or outside information was checked. Questions
 about what reviewers report remain answerable when supported by the dataset.
-Comprehensive deterministic S2-014 tests are deferred; the existing mocked
-scope-guard evaluation does not establish live model behavior.
+The deterministic scope-guard evaluation covers the four S2-014 examples,
+scope explanations, prompt policy, and supported review questions using mocked
+responses; it does not establish live model behavior.
 
 ## Configuration and local use
 
@@ -74,7 +75,7 @@ then ask a question from the target details page.
 Automated tests use a mocked Q&A model and mocked OpenAI HTTP calls. No real
 OpenAI requests or API charges are incurred by tests.
 
-## Scope-guard evaluation (S2-004)
+## Scope-guard evaluation (S2-004, S2-014)
 
 `scopeGuardEvaluation.test.ts` keeps a small deterministic set of synthetic
 review questions covering supported answers, missing evidence, general

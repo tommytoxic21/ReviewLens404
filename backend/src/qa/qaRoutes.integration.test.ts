@@ -279,18 +279,77 @@ describe('S2-010..012 authenticated Q&A database integration', () => {
   });
 
   it('rejects cross-user access and never sends that user review data to OpenAI', async () => {
-    expect((await ask(strangersTargetId)).statusCode).toBe(404);
-    expect((await ask(firstTargetId, stranger)).statusCode).toBe(404);
-    expect(
-      (
-        await app.inject({
-          method: 'POST',
-          url: `/api/analysis-targets/${firstTargetId}/questions`,
-          payload: { question: 'Anything?' },
-        })
-      ).statusCode,
-    ).toBe(401);
+    const missing = await ask('00000000-0000-4000-8000-000000000000', stranger);
+    expect(missing.statusCode).toBe(404);
+    for (const response of [
+      await ask(strangersTargetId),
+      await ask(firstTargetId, stranger),
+    ]) {
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toEqual(missing.json());
+      expect(response.json()).not.toHaveProperty('answer');
+      expect(response.body).not.toContain('Unique battery life complaint');
+      expect(response.body).not.toContain('PRIVATE USER B SECRET');
+      expect(response.body).not.toContain('First Coffee');
+      expect(response.body).not.toContain('Other Coffee');
+    }
+    const unauthenticated = await app.inject({
+      method: 'POST',
+      url: `/api/analysis-targets/${firstTargetId}/questions`,
+      payload: { question: 'Anything?' },
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(unauthenticated.json()).not.toHaveProperty('answer');
+    expect(unauthenticated.body).not.toContain('Unique battery life complaint');
     expect(answer).not.toHaveBeenCalled();
+  });
+
+  it('S2-016: ignores forged ownership and review context in the request body', async () => {
+    const payload = {
+      question: 'What do reviews say?',
+      userId: 'user-qa-owner',
+      ownerId: 'user-qa-owner',
+      targetId: firstTargetId,
+      target: { id: firstTargetId, name: 'Forged target', platform: 'yelp' },
+      reviews: [{ text: 'CLIENT-SUPPLIED REVIEW', rating: 5 }],
+      reviewSubset: [{ text: 'CLIENT-SUPPLIED REVIEW', rating: 5 }],
+    };
+    const denied = await app.inject({
+      method: 'POST',
+      url: `/api/analysis-targets/${firstTargetId}/questions`,
+      headers: stranger,
+      payload,
+    });
+    expect(denied.statusCode).toBe(404);
+    expect(denied.body).not.toContain('Unique battery life complaint');
+    expect(answer).not.toHaveBeenCalled();
+
+    const allowed = await app.inject({
+      method: 'POST',
+      url: `/api/analysis-targets/${strangersTargetId}/questions`,
+      headers: stranger,
+      payload,
+    });
+    expect(allowed.statusCode).toBe(200);
+    expect(allowed.json().status).toBe('answered');
+    expect(answer).toHaveBeenCalledOnce();
+    const context = answer.mock.calls[0]?.[1];
+    expect(context).toMatchObject({
+      targetId: strangersTargetId,
+      targetName: 'Other Coffee',
+      targetPlatform: 'google',
+      totalReviewCount: 1,
+      reviews: [expect.objectContaining({ text: 'PRIVATE USER B SECRET' })],
+    });
+    expect(allowed.json().answer).toContain('PRIVATE USER B SECRET');
+    for (const serialized of [JSON.stringify(context), allowed.body]) {
+      expect(serialized).not.toContain('Unique battery life complaint');
+      expect(serialized).not.toContain(
+        'Unique friendly customer service praise',
+      );
+      expect(serialized).not.toContain('CLIENT-SUPPLIED REVIEW');
+      expect(serialized).not.toContain('Forged target');
+    }
   });
 
   it.each(['not-started', 'failed', 'empty-result'])(

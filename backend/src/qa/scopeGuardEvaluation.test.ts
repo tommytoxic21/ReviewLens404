@@ -78,6 +78,30 @@ const cases: ScopeGuardCase[] = [
       'One review reports a wait, while the evidence does not establish a general pattern.',
   },
   {
+    id: 'supported-reviewer-comparison',
+    category: 'in-scope-answerable',
+    activeTarget: { name: 'Northstar Coffee', platform: 'google' },
+    reviewEvidence: [
+      ...reviewEvidence,
+      {
+        id: 'evaluation-review-comparison',
+        rating: 4,
+        text: 'My drink arrived faster here at Northstar Coffee than it did at Harbor Cafe yesterday.',
+        reviewedAt: null,
+      },
+    ],
+    question: 'How do these reviewers compare service here with Harbor Cafe?',
+    expectedBehavior: {
+      status: 'answered',
+      requiredSignals: ['faster'],
+      forbiddenSignals: ['always faster', 'Harbor Cafe reviews show'],
+    },
+    controlledAnswer:
+      'One reviewer reports getting a drink faster at Northstar Coffee than at Harbor Cafe on their previous visit. This is a single experience, not an independent assessment of Harbor Cafe.',
+    rationale:
+      'The active reviews support an attributed comparison without needing another dataset.',
+  },
+  {
     id: 'missing-parking-safety',
     category: 'in-scope-insufficient-evidence',
     activeTarget: { name: 'Northstar Coffee', platform: 'google' },
@@ -226,6 +250,23 @@ const cases: ScopeGuardCase[] = [
       'The active platform is Google; no Yelp review evidence is included.',
   },
   {
+    id: 'another-entity-and-platform-comparison',
+    category: 'another-platform',
+    activeTarget: { name: 'Northstar Coffee', platform: 'google' },
+    reviewEvidence,
+    question:
+      'How does Northstar Coffee compare with Harbor Cafe based on Amazon reviews?',
+    expectedBehavior: {
+      status: 'insufficient_evidence',
+      requiredSignals: ['Amazon'],
+      forbiddenSignals: ['Amazon reviewers prefer', 'Harbor Cafe is better'],
+    },
+    controlledAnswer:
+      "The active dataset contains Northstar Coffee's Google reviews, with no Amazon reviews for either business or evidence about Harbor Cafe. I cannot make that comparison; you can ask about the supplied Northstar Coffee reviews.",
+    rationale:
+      'Neither the requested platform nor the other business is represented in the active evidence.',
+  },
+  {
     id: 'another-platform-comparison',
     category: 'another-platform',
     activeTarget: { name: 'Northstar Coffee', platform: 'google' },
@@ -269,7 +310,7 @@ function includesAny(text: string, signals: string[]): boolean {
   return signals.some((signal) => normalized.includes(signal.toLowerCase()));
 }
 
-describe('S2-004/S2-014 deterministic scope-guard evaluation', () => {
+describe('S2-004/S2-014/S2-015 deterministic scope-guard evaluation', () => {
   it('keeps at least two examples in every required category', () => {
     const categories: ScopeGuardCase['category'][] = [
       'in-scope-answerable',
@@ -332,6 +373,12 @@ describe('S2-004/S2-014 deterministic scope-guard evaluation', () => {
         ).toBe(true);
         expect(result.answer).not.toMatch(/\bI (?:checked|analyzed)\b/i);
       }
+      if (category === 'another-entity' || category === 'another-platform') {
+        expect(result.answer).toMatch(/\b(cannot|can't|unable)\b/i);
+        expect(result.answer).toMatch(/\breviews?\b/i);
+        expect(result.answer).toMatch(/\b(not|no|do not|does not)\b/i);
+        expect(result.answer).not.toMatch(/\bI (?:checked|analyzed)\b/i);
+      }
 
       const [url, init] = transport.mock.calls[0]!;
       expect(String(url)).toBe('https://api.openai.com/v1/responses');
@@ -370,6 +417,26 @@ describe('S2-004/S2-014 deterministic scope-guard evaluation', () => {
       );
       expect(request.instructions).toMatch(
         /reviewers report remain in scope.*supported.*evidence/i,
+      );
+      // S2-BR-017/018: reject missing entity/platform evidence, while
+      // retaining comparisons that the active reviews actually support.
+      expect(request.instructions).toMatch(
+        /another product, business, location, entity, or review platform not represented.*decline.*"insufficient_evidence"/i,
+      );
+      expect(request.instructions).toMatch(
+        /identify the missing entity or platform evidence/i,
+      );
+      expect(request.instructions).toMatch(
+        /both direct and indirect requests/i,
+      );
+      expect(request.instructions).toMatch(
+        /another platform in review text does not constitute review data/i,
+      );
+      expect(request.instructions).toMatch(
+        /answer comparisons only when the supplied review evidence supports/i,
+      );
+      expect(request.instructions).toMatch(
+        /attribute comparative statements to the reviewers.*describe their limits/i,
       );
       expect(promptInput).toEqual({
         target: {

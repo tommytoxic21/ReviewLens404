@@ -59,6 +59,7 @@ describe('S2-010..012 authenticated Q&A database integration', () => {
   beforeEach(async () => {
     await connection.db.delete(analysisTargets);
     answer.mockReset();
+    reviewSource.fetchReviews.mockReset();
     answer.mockImplementation(
       async (
         _question: string,
@@ -147,6 +148,98 @@ describe('S2-010..012 authenticated Q&A database integration', () => {
       payload: { question: 'What do reviews say?' },
     });
   }
+
+  it('ingests persisted reviews and uses them for owned-target Q&A', async () => {
+    const [target] = await connection.db
+      .insert(analysisTargets)
+      .values({
+        ownerId: 'user-qa-owner',
+        entityName: 'Ingested Coffee',
+        platform: 'google',
+        sourceUrl: 'https://maps.google.com/ingested',
+      })
+      .returning();
+    const targetId = target!.id;
+    reviewSource.fetchReviews.mockResolvedValue([
+      {
+        sourceReviewId: 'ingested-review',
+        reviewText: 'Persisted review praises the quiet patio',
+        rating: 5,
+      },
+      {
+        sourceReviewId: 'rejected-review',
+        reviewText: 'This invalid rating must not be stored',
+        rating: 6,
+      },
+    ]);
+
+    const emptyTargetResponse = await ask(targetId);
+    expect(emptyTargetResponse.statusCode).toBe(409);
+    expect(answer).not.toHaveBeenCalled();
+
+    const ingestion = await app.inject({
+      method: 'POST',
+      url: `/api/analysis-targets/${targetId}/ingestions`,
+      headers: owner,
+    });
+    expect(ingestion.statusCode).toBe(201);
+    expect(ingestion.json().attempt).toMatchObject({
+      analysisTargetId: targetId,
+      status: 'succeeded',
+      receivedCount: 2,
+      savedCount: 1,
+      rejectedCount: 1,
+    });
+    expect(reviewSource.fetchReviews).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        id: targetId,
+        ownerId: 'user-qa-owner',
+      }),
+    );
+
+    const persistedTarget = await app.inject({
+      method: 'GET',
+      url: `/api/analysis-targets/${targetId}`,
+      headers: owner,
+    });
+    expect(persistedTarget.statusCode).toBe(200);
+    expect(persistedTarget.json()).toMatchObject({
+      reviews: [
+        {
+          analysisTargetId: targetId,
+          reviewText: 'Persisted review praises the quiet patio',
+          rating: 5,
+        },
+      ],
+      latestIngestion: {
+        status: 'succeeded',
+        receivedCount: 2,
+        savedCount: 1,
+        rejectedCount: 1,
+      },
+    });
+
+    const response = await ask(targetId);
+    expect(response.statusCode).toBe(200);
+    expect(response.json().answer).toContain(
+      'Persisted review praises the quiet patio',
+    );
+    expect(answer).toHaveBeenCalledOnce();
+    expect(answer.mock.calls[0]?.[1]).toMatchObject({
+      targetId,
+      targetName: 'Ingested Coffee',
+      totalReviewCount: 1,
+      reviews: [
+        expect.objectContaining({
+          text: 'Persisted review praises the quiet patio',
+        }),
+      ],
+    });
+    const context = JSON.stringify(answer.mock.calls[0]?.[1]);
+    expect(context).not.toContain('invalid rating');
+    expect(context).not.toContain('Unique battery life complaint');
+    expect(context).not.toContain('PRIVATE USER B SECRET');
+  });
 
   it('uses only the selected target and replaces evidence after a switch', async () => {
     const a = await ask(firstTargetId);

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '../db/client.js';
+import { AnalysisTargetAccessError } from '../analysisTargets/analysisTargetRepository.js';
 
 const { contextMock } = vi.hoisted(() => ({ contextMock: vi.fn() }));
 vi.mock('./reviewContext.js', () => ({ buildReviewContext: contextMock }));
@@ -66,6 +67,21 @@ describe('S2-010/011/012 review Q&A orchestration', () => {
     );
     expect(result.status).toBe('insufficient_evidence');
     expect(result.answer).toMatch(/parking safety/);
+  });
+
+  it('S2-016: stops before the model when context authorization fails', async () => {
+    const accessError = new AnalysisTargetAccessError();
+    contextMock.mockRejectedValue(accessError);
+    const answer = vi.fn();
+    const otherUser = { userId: 'user-b' };
+
+    await expect(
+      answerQuestionForTarget(db, otherUser, targetId, 'What do reviews say?', {
+        answer,
+      }),
+    ).rejects.toBe(accessError);
+    expect(contextMock).toHaveBeenCalledWith(db, otherUser, targetId);
+    expect(answer).not.toHaveBeenCalled();
   });
 
   it('rejects empty target datasets without calling OpenAI', async () => {

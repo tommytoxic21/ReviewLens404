@@ -55,6 +55,36 @@ h3 {
   font-size: 13px;
   margin: 6px 0 20px;
 }
+.active-target-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #526276;
+}
+
+.active-target-select select {
+  min-width: 180px;
+  max-width: 260px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #172334;
+  font: inherit;
+}
+
+@media (max-width: 480px) {
+  .active-target-select {
+    width: 100%;
+  }
+
+  .active-target-select select {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
 .actions {
   display: flex;
   align-items: center;

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -57,6 +58,319 @@ afterEach(() => {
 });
 
 describe('App', () => {
+  it('switches review data and Q&A requests to the selected target', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/target-a');
+
+    const targetA = makeTarget({
+      id: 'target-a',
+      name: 'Battery Store',
+      ingestionStatus: 'succeeded',
+      reviews: [
+        {
+          id: 'review-a',
+          reviewText: 'Battery life lasts all day.',
+          rating: 5,
+          reviewerName: null,
+          reviewedAt: null,
+          reviewUrl: null,
+        },
+      ],
+    });
+    const targetB = makeTarget({
+      id: 'target-b',
+      name: 'Service Desk',
+      ingestionStatus: 'succeeded',
+      reviews: [
+        {
+          id: 'review-b',
+          reviewText: 'Customer service needs improvement.',
+          rating: 2,
+          reviewerName: null,
+          reviewedAt: null,
+          reviewUrl: null,
+        },
+      ],
+    });
+
+    vi.mocked(targetsApi.list).mockResolvedValue([targetA, targetB]);
+    vi.mocked(targetsApi.get).mockImplementation(async (_token, id) => {
+      if (id === 'target-a') return targetA;
+      if (id === 'target-b') return targetB;
+      throw new Error('Place not found.');
+    });
+    vi.mocked(targetsApi.ask).mockResolvedValue('Customer service is mixed.');
+
+    render(<App />);
+
+    expect(
+      await screen.findByText('Battery life lasts all day.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Battery Store' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('5.0')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Active place' }), {
+      target: { value: 'target-b' },
+    });
+
+    expect(
+      await screen.findByText('Customer service needs improvement.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Service Desk' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('2.0')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Battery life lasts all day.'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Active place' })).toHaveValue(
+      'target-b',
+    );
+    expect(window.location.pathname).toBe('/targets/target-b');
+    expect(targetsApi.get).toHaveBeenCalledWith('test-token', 'target-b');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'How is the service?' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Ask ReviewLens' }));
+
+    await waitFor(() => {
+      expect(targetsApi.ask).toHaveBeenCalledWith(
+        'test-token',
+        'target-b',
+        'How is the service?',
+      );
+    });
+  });
+
+  it('S2-019: ignores an outdated target response after a newer target loads', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/target-a');
+
+    const targetA = makeTarget({
+      id: 'target-a',
+      name: 'Battery Store',
+      ingestionStatus: 'succeeded',
+      reviews: [
+        {
+          id: 'review-a',
+          reviewText: 'Battery life lasts all day.',
+          rating: 5,
+          reviewerName: null,
+          reviewedAt: null,
+          reviewUrl: null,
+        },
+      ],
+    });
+
+    const targetB = makeTarget({
+      id: 'target-b',
+      name: 'Service Desk',
+      ingestionStatus: 'succeeded',
+      reviews: [
+        {
+          id: 'review-b',
+          reviewText: 'Customer service needs improvement.',
+          rating: 2,
+          reviewerName: null,
+          reviewedAt: null,
+          reviewUrl: null,
+        },
+      ],
+    });
+
+    let resolveTargetA: (
+      target: ReturnType<typeof makeTarget>,
+    ) => void = () => {};
+    const delayedTargetA = new Promise<ReturnType<typeof makeTarget>>(
+      (resolve) => {
+        resolveTargetA = resolve;
+      },
+    );
+
+    vi.mocked(targetsApi.list).mockResolvedValue([targetA, targetB]);
+    vi.mocked(targetsApi.get).mockImplementation(async (_token, id) => {
+      if (id === 'target-a') return delayedTargetA;
+      if (id === 'target-b') return targetB;
+      throw new Error('Place not found.');
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(targetsApi.get).toHaveBeenCalledWith('test-token', 'target-a');
+    });
+
+    act(() => {
+      window.history.pushState({}, '', '/targets/target-b');
+      window.dispatchEvent(new Event('popstate'));
+    });
+
+    expect(
+      await screen.findByText('Customer service needs improvement.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Service Desk' }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      resolveTargetA(targetA);
+    });
+
+    expect(
+      screen.queryByText('Battery life lasts all day.'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Customer service needs improvement.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Service Desk' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Active place' })).toHaveValue(
+      'target-b',
+    );
+    expect(window.location.pathname).toBe('/targets/target-b');
+  });
+
+  it('S2-019: reports a saved-place refresh failure after browser navigation', async () => {
+    authState.signedIn = true;
+
+    vi.mocked(targetsApi.list)
+      .mockResolvedValueOnce([makeTarget()])
+      .mockRejectedValueOnce(new Error('Unable to refresh saved places.'));
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Open Joe’s Pizza dashboard',
+      }),
+    ).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event('popstate'));
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to refresh saved places.',
+    );
+    expect(targetsApi.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('S2-019: does not display an old Q&A answer after switching targets', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/target-a');
+
+    const targetA = makeTarget({
+      id: 'target-a',
+      name: 'Battery Store',
+      ingestionStatus: 'succeeded',
+      reviews: [
+        {
+          id: 'review-a',
+          reviewText: 'Battery life lasts all day.',
+          rating: 5,
+          reviewerName: null,
+          reviewedAt: null,
+          reviewUrl: null,
+        },
+      ],
+    });
+
+    const targetB = makeTarget({
+      id: 'target-b',
+      name: 'Service Desk',
+      ingestionStatus: 'succeeded',
+      reviews: [
+        {
+          id: 'review-b',
+          reviewText: 'Customer service needs improvement.',
+          rating: 2,
+          reviewerName: null,
+          reviewedAt: null,
+          reviewUrl: null,
+        },
+      ],
+    });
+
+    let resolveOldAnswer: (answer: string) => void = () => {};
+    const delayedOldAnswer = new Promise<string>((resolve) => {
+      resolveOldAnswer = resolve;
+    });
+
+    vi.mocked(targetsApi.list).mockResolvedValue([targetA, targetB]);
+    vi.mocked(targetsApi.get).mockImplementation(async (_token, id) => {
+      if (id === 'target-a') return targetA;
+      if (id === 'target-b') return targetB;
+      throw new Error('Place not found.');
+    });
+
+    vi.mocked(targetsApi.ask).mockImplementation(async (_token, id) => {
+      if (id === 'target-a') return delayedOldAnswer;
+      if (id === 'target-b') return 'Service Desk answer only.';
+      throw new Error('Unexpected target.');
+    });
+
+    render(<App />);
+
+    expect(
+      await screen.findByText('Battery life lasts all day.'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'How is the service?' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Ask ReviewLens' }));
+
+    await waitFor(() => {
+      expect(targetsApi.ask).toHaveBeenCalledWith(
+        'test-token',
+        'target-a',
+        'How is the service?',
+      );
+    });
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Active place' }), {
+      target: { value: 'target-b' },
+    });
+
+    expect(
+      await screen.findByText('Customer service needs improvement.'),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByText('Battery life lasts all day.'),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'How is the service?' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Ask ReviewLens' }));
+
+    expect(
+      await screen.findByText('Service Desk answer only.'),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      resolveOldAnswer('Battery Store answer only.');
+    });
+
+    expect(
+      screen.queryByText('Battery Store answer only.'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Service Desk answer only.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Service Desk' }),
+    ).toBeInTheDocument();
+    expect(targetsApi.ask).toHaveBeenCalledWith(
+      'test-token',
+      'target-b',
+      'How is the service?',
+    );
+  });
+
   it('shows the sign-in action when signed out', () => {
     render(<App />);
     expect(

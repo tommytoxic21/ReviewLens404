@@ -234,6 +234,31 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/targets/target-b');
   });
 
+  it('S2-019: reports a saved-place refresh failure after browser navigation', async () => {
+    authState.signedIn = true;
+
+    vi.mocked(targetsApi.list)
+      .mockResolvedValueOnce([makeTarget()])
+      .mockRejectedValueOnce(new Error('Unable to refresh saved places.'));
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Open Joe’s Pizza dashboard',
+      }),
+    ).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event('popstate'));
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to refresh saved places.',
+    );
+    expect(targetsApi.list).toHaveBeenCalledTimes(2);
+  });
+
   it('S2-019: does not display an old Q&A answer after switching targets', async () => {
     authState.signedIn = true;
     window.history.replaceState({}, '', '/targets/target-a');

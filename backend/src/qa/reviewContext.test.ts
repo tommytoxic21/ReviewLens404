@@ -96,4 +96,123 @@ describe('S2-010 owned review context', () => {
     ).toBeLessThanOrEqual(MAX_CONTEXT_CHARACTERS);
     expect(context.reviews[0]?.id).toBe('review-119');
   });
+
+  it('S2-018/S2-019: rebuilds persisted review context when switching A to B to A', async () => {
+    const targetBId = '22222222-2222-4222-8222-222222222222';
+
+    const reviewsA = [
+      review(1, 'Battery life lasts all day.'),
+      review(2, 'Battery life is excellent.'),
+    ];
+
+    const reviewsB = [
+      {
+        ...review(3, 'Customer service was slow.'),
+        analysisTargetId: targetBId,
+      },
+      {
+        ...review(4, 'Customer service needs improvement.'),
+        analysisTargetId: targetBId,
+      },
+      {
+        ...review(5, 'The staff helped with customer service.'),
+        analysisTargetId: targetBId,
+      },
+    ];
+
+    requireOwnedTarget.mockImplementation(
+      async (_db: Database, _user: typeof owner, id: string) => {
+        if (id === targetId) {
+          return {
+            id,
+            entityName: 'Battery Store',
+            platform: 'google',
+          };
+        }
+        if (id === targetBId) {
+          return {
+            id,
+            entityName: 'Service Desk',
+            platform: 'google',
+          };
+        }
+        throw new Error('Target not found.');
+      },
+    );
+
+    listOwnedReviews.mockImplementation(
+      async (_db: Database, _user: typeof owner, id: string) => {
+        if (id === targetId) return reviewsA;
+        if (id === targetBId) return reviewsB;
+        throw new Error('Target not found.');
+      },
+    );
+
+    const contextA1 = await buildReviewContext(database, owner, targetId);
+    const contextB = await buildReviewContext(database, owner, targetBId);
+    const contextA2 = await buildReviewContext(database, owner, targetId);
+
+    expect(contextA1.targetId).toBe(targetId);
+    expect(contextA1.targetName).toBe('Battery Store');
+    expect(contextA1.totalReviewCount).toBe(2);
+
+    expect(contextB.targetId).toBe(targetBId);
+    expect(contextB.targetName).toBe('Service Desk');
+    expect(contextB.totalReviewCount).toBe(3);
+
+    expect(contextA2).toEqual(contextA1);
+
+    expect(
+      contextA1.reviews.every((item) => item.text.includes('Battery life')),
+    ).toBe(true);
+
+    expect(
+      contextB.reviews.every(
+        (item) =>
+          item.text.includes('Customer service') ||
+          item.text.includes('customer service'),
+      ),
+    ).toBe(true);
+
+    expect(JSON.stringify(contextB)).not.toContain('Battery life');
+    expect(JSON.stringify(contextA2)).not.toContain('Customer service');
+
+    expect(requireOwnedTarget).toHaveBeenNthCalledWith(
+      1,
+      database,
+      owner,
+      targetId,
+    );
+    expect(requireOwnedTarget).toHaveBeenNthCalledWith(
+      2,
+      database,
+      owner,
+      targetBId,
+    );
+    expect(requireOwnedTarget).toHaveBeenNthCalledWith(
+      3,
+      database,
+      owner,
+      targetId,
+    );
+
+    expect(listOwnedReviews).toHaveBeenNthCalledWith(
+      1,
+      database,
+      owner,
+      targetId,
+    );
+    expect(listOwnedReviews).toHaveBeenNthCalledWith(
+      2,
+      database,
+      owner,
+      targetBId,
+    );
+    expect(listOwnedReviews).toHaveBeenNthCalledWith(
+      3,
+      database,
+      owner,
+      targetId,
+    );
+  });
 });

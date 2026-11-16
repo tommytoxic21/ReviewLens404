@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   SignedIn,
   SignedOut,
@@ -25,6 +25,7 @@ function Workspace() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const targetRequestId = useRef(0);
 
   const token = useCallback(async () => {
     const value = await getToken();
@@ -35,28 +36,35 @@ function Workspace() {
 
   const openTarget = useCallback(
     async (id: string) => {
+      const requestId = ++targetRequestId.current;
+      setActive(null);
       setError('');
       setLoading(true);
       try {
         const result = await targetsApi.get(await token(), id);
-        setActive(result);
+        if (requestId === targetRequestId.current) setActive(result);
       } catch (err) {
-        setActive(null);
-        setError(
-          err instanceof Error ? err.message : 'Unable to open this place.',
-        );
+        if (requestId === targetRequestId.current) {
+          setActive(null);
+          setError(
+            err instanceof Error ? err.message : 'Unable to open this place.',
+          );
+        }
       } finally {
-        setLoading(false);
+        if (requestId === targetRequestId.current) setLoading(false);
       }
     },
     [token],
   );
 
   const refresh = useCallback(async () => {
+    const requestId = ++targetRequestId.current;
+    setActive(null);
     setLoading(true);
     setError('');
     try {
       const results = await targetsApi.list(await token());
+      if (requestId !== targetRequestId.current) return;
       setTargets(results);
       const id = decodeURIComponent(
         window.location.pathname.match(/^\/targets\/([^/]+)$/)?.[1] ?? '',
@@ -64,22 +72,26 @@ function Workspace() {
       if (id) await openTarget(id);
       else setActive(null);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Unable to load your places.',
-      );
+      if (requestId === targetRequestId.current) {
+        setError(
+          err instanceof Error ? err.message : 'Unable to load your places.',
+        );
+      }
     } finally {
-      setLoading(false);
+      if (requestId === targetRequestId.current) setLoading(false);
     }
   }, [token, openTarget]);
 
   useEffect(() => {
     let cancelled = false;
+    const requestId = ++targetRequestId.current;
+    const requestTracker = targetRequestId;
 
     async function loadTargets() {
       try {
         const results = await targetsApi.list(await token());
 
-        if (cancelled) return;
+        if (cancelled || requestId !== targetRequestId.current) return;
 
         setTargets(results);
 
@@ -93,13 +105,13 @@ function Workspace() {
           setActive(null);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && requestId === targetRequestId.current) {
           setError(
             err instanceof Error ? err.message : 'Unable to load your places.',
           );
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && requestId === targetRequestId.current) {
           setLoading(false);
         }
       }
@@ -109,6 +121,7 @@ function Workspace() {
 
     return () => {
       cancelled = true;
+      ++requestTracker.current;
     };
   }, [token, openTarget]);
   useEffect(() => {
@@ -129,8 +142,10 @@ function Workspace() {
     setShowForm(false);
     if (id) void openTarget(id);
     else {
+      ++targetRequestId.current;
       setActive(null);
       setError('');
+      setLoading(false);
     }
   };
 
@@ -167,23 +182,33 @@ function Workspace() {
   const ingest = async () => {
     if (!active) return;
     const targetId = active.id;
+    const requestId = targetRequestId.current;
+    const isCurrentTarget = () =>
+      requestId === targetRequestId.current &&
+      window.location.pathname === `/targets/${encodeURIComponent(targetId)}`;
     setProcessing(true);
     setError('');
     setNotice('');
     try {
       await targetsApi.ingest(await token(), targetId);
-      setNotice('Review ingestion completed successfully.');
-      await openTarget(targetId);
+      if (isCurrentTarget()) {
+        setNotice('Review ingestion completed successfully.');
+        await openTarget(targetId);
+      }
     } catch (err) {
+      if (!isCurrentTarget()) return;
       const ingestionError =
         err instanceof Error ? err.message : 'Could not start ingestion.';
       setError(ingestionError);
       try {
         const refreshed = await targetsApi.get(await token(), targetId);
-        setActive((current) =>
-          current?.id === targetId ? refreshed : current,
-        );
+        if (isCurrentTarget()) {
+          setActive((current) =>
+            current?.id === targetId ? refreshed : current,
+          );
+        }
       } catch (refreshError) {
+        if (!isCurrentTarget()) return;
         const refreshMessage =
           refreshError instanceof Error
             ? refreshError.message
@@ -258,6 +283,22 @@ function Workspace() {
               >
                 My places
               </button>
+              {targets.length > 1 && (
+                <label className="active-target-select">
+                  Active place
+                  <select
+                    value={active.id}
+                    onChange={(event) => navigate(event.target.value)}
+                    disabled={loading || processing}
+                  >
+                    {targets.map((target) => (
+                      <option key={target.id} value={target.id}>
+                        {target.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <button
                 type="button"
                 className="button primary"
@@ -427,7 +468,7 @@ function Workspace() {
 
           {reviewCount > 0 ? (
             <ReviewQA
-              key={active.id}
+              key={`qa-${active.id}`}
               targetName={active.name}
               onAsk={async (question) =>
                 targetsApi.ask(await token(), active.id, question)
@@ -448,7 +489,7 @@ function Workspace() {
           )}
 
           <ReviewsList
-            key={active.id}
+            key={`reviews-${active.id}`}
             placeName={active.name}
             reviews={active.reviews ?? []}
           />

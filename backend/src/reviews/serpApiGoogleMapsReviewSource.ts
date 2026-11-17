@@ -5,6 +5,7 @@ import {
   ReviewSourceError,
   type SourceReview,
 } from './reviewSource.js';
+import { normalizeSourceReviews } from './reviewNormalization.js';
 
 type FetchImplementation = typeof fetch;
 
@@ -316,6 +317,7 @@ export class SerpApiGoogleMapsReviewSource implements ReviewSource {
     const seenIds = new Set(excludedSourceReviewIds);
     const seenPageTokens = new Set<string>();
     const newReviews: SourceReview[] = [];
+    let validReviewCount = 0;
     let pageToken: string | undefined;
 
     for (let page = 0; page < MAX_REVIEW_PAGES_PER_IMPORT; page++) {
@@ -330,10 +332,23 @@ export class SerpApiGoogleMapsReviewSource implements ReviewSource {
 
       for (const review of sourceReviewsFromPayload(reviewPayload)) {
         const reviewId = asNonEmptyString(review.sourceReviewId);
+
         if (reviewId && seenIds.has(reviewId)) continue;
         if (reviewId) seenIds.add(reviewId);
+
+        // Keep rejected reviews so the ingestion service can count them.
         newReviews.push(review);
-        if (newReviews.length === REVIEWS_PER_IMPORT) return newReviews;
+
+        // Only valid reviews count toward the 10-review import limit.
+        const isValid = normalizeSourceReviews([review]).reviews.length > 0;
+
+        if (isValid) {
+          validReviewCount++;
+
+          if (validReviewCount === REVIEWS_PER_IMPORT) {
+            return newReviews;
+          }
+        }
       }
 
       const pagination = asRecord(reviewPayload.serpapi_pagination);

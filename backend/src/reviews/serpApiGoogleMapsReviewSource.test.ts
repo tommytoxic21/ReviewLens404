@@ -228,4 +228,38 @@ describe('SerpApiGoogleMapsReviewSource', () => {
     const reviewsUrl = fetchImplementation.mock.calls[1]?.[0] as URL;
     expect(reviewsUrl.searchParams.get('data_id')).toBe('0x123:0x456');
   });
+
+  it('returns a partial batch when pagination reaches its safety limit', async () => {
+    let requestCount = 0;
+
+    const fetchImplementation = vi.fn(async () => {
+      requestCount++;
+
+      return jsonResponse({
+        reviews: [
+          {
+            review_id: 'only-new-review',
+            snippet: 'Great place.',
+            rating: 5,
+          },
+        ],
+        serpapi_pagination: {
+          next_page_token: `page-${requestCount + 1}`,
+        },
+      });
+    });
+
+    const source = new SerpApiGoogleMapsReviewSource(
+      'private-api-key',
+      fetchImplementation,
+    );
+
+    const reviews = await source.fetchReviews(
+      target('https://www.google.com/maps/place/Test/?query_place_id=ChITest'),
+    );
+
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]?.sourceReviewId).toBe('only-new-review');
+    expect(fetchImplementation).toHaveBeenCalledTimes(25);
+  });
 });

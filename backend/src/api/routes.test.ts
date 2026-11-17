@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { resolve } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { eq } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import {
   afterAll,
@@ -28,7 +29,7 @@ import {
   createDatabaseConnection,
   type DatabaseConnection,
 } from '../db/client.js';
-import { analysisTargets } from '../db/schema.js';
+import { analysisTargets, ingestionAttempts, reviews } from '../db/schema.js';
 import { registerApiRoutes } from './routes.js';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -174,5 +175,69 @@ describe('protected ReviewLens API', () => {
         status: 'succeeded',
       },
     });
+  });
+
+  it('deletes an owned place and cascades to its reviews and ingestion history', async () => {
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/analysis-targets',
+      headers: { 'x-test-user': 'user_owner_a' },
+      payload: {
+        entityName: 'Place to delete',
+        platform: 'google',
+        sourceUrl: 'https://www.google.com/maps/place/Test',
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+    const targetId = createResponse.json<{ target: { id: string } }>().target
+      .id;
+
+    const ingestionResponse = await app.inject({
+      method: 'POST',
+      url: `/api/analysis-targets/${targetId}/ingestions`,
+      headers: { 'x-test-user': 'user_owner_a' },
+    });
+    expect(ingestionResponse.statusCode).toBe(201);
+
+    const unauthorizedDelete = await app.inject({
+      method: 'DELETE',
+      url: `/api/analysis-targets/${targetId}`,
+      headers: { 'x-test-user': 'user_owner_b' },
+    });
+    expect(unauthorizedDelete.statusCode).toBe(404);
+
+    const ownerDelete = await app.inject({
+      method: 'DELETE',
+      url: `/api/analysis-targets/${targetId}`,
+      headers: { 'x-test-user': 'user_owner_a' },
+    });
+    expect(ownerDelete.statusCode).toBe(204);
+    expect(ownerDelete.body).toBe('');
+
+    expect(
+      await connection.db
+        .select()
+        .from(analysisTargets)
+        .where(eq(analysisTargets.id, targetId)),
+    ).toHaveLength(0);
+    expect(
+      await connection.db
+        .select()
+        .from(reviews)
+        .where(eq(reviews.analysisTargetId, targetId)),
+    ).toHaveLength(0);
+    expect(
+      await connection.db
+        .select()
+        .from(ingestionAttempts)
+        .where(eq(ingestionAttempts.analysisTargetId, targetId)),
+    ).toHaveLength(0);
+
+    const deletedAgain = await app.inject({
+      method: 'DELETE',
+      url: `/api/analysis-targets/${targetId}`,
+      headers: { 'x-test-user': 'user_owner_a' },
+    });
+    expect(deletedAgain.statusCode).toBe(404);
   });
 });

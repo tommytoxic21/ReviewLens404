@@ -261,4 +261,37 @@ describe('targetsApi', () => {
       'Request failed (502).',
     );
   });
+
+  it('deletes a saved place using the authenticated endpoint and accepts 204 No Content', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      targetsApi.remove('session-token', 'place/id'),
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith('/api/analysis-targets/place%2Fid', {
+      method: 'DELETE',
+      body: '{}',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer session-token',
+      },
+    });
+  });
+
+  it('does not silently swallow a failed delete', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ error: 'Analysis target was not found.' }, 404),
+        ),
+    );
+    await expect(
+      targetsApi.remove('token', 'other-user-target'),
+    ).rejects.toThrow('Analysis target was not found.');
+  });
 });

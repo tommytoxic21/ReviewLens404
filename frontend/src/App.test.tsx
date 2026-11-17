@@ -33,6 +33,7 @@ vi.mock('./targetsApi', () => ({
     get: vi.fn(),
     create: vi.fn(),
     ingest: vi.fn(),
+    remove: vi.fn(),
     ask: vi.fn(),
   },
 }));
@@ -54,6 +55,7 @@ afterEach(() => {
   cleanup();
   authState.signedIn = false;
   vi.clearAllMocks();
+  vi.restoreAllMocks();
   window.history.replaceState({}, '', '/');
 });
 
@@ -722,5 +724,146 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Import reviews' }),
     ).toBeEnabled();
+  });
+
+  it('removes a saved place from the collection after successful deletion', async () => {
+    authState.signedIn = true;
+    vi.mocked(targetsApi.list).mockResolvedValue([makeTarget()]);
+    vi.mocked(targetsApi.remove).mockResolvedValue(undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete Joe’s Pizza' }),
+    );
+
+    await waitFor(() => {
+      expect(targetsApi.remove).toHaveBeenCalledWith('test-token', 'target-1');
+    });
+    expect(
+      await screen.findByText('Your collection starts here'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('"Joe’s Pizza" and its reviews were deleted.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Open Joe’s Pizza dashboard' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('requires confirmation before deleting a saved place', async () => {
+    authState.signedIn = true;
+    vi.mocked(targetsApi.list).mockResolvedValue([makeTarget()]);
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete Joe’s Pizza' }),
+    );
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('Permanently delete'),
+    );
+    expect(targetsApi.remove).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: 'Open Joe’s Pizza dashboard' }),
+    ).toBeInTheDocument();
+  });
+
+  it('deletes the active place and returns to the saved places page', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/target-1');
+    vi.mocked(targetsApi.list).mockResolvedValue([makeTarget()]);
+    vi.mocked(targetsApi.get).mockResolvedValue(makeTarget());
+    vi.mocked(targetsApi.remove).mockResolvedValue(undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete place' }),
+    );
+
+    expect(
+      await screen.findByText('Your collection starts here'),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/');
+    expect(targetsApi.remove).toHaveBeenCalledWith('test-token', 'target-1');
+    expect(
+      screen.queryByRole('heading', { name: 'Joe’s Pizza' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps a saved place if server-side deletion fails', async () => {
+    authState.signedIn = true;
+    vi.mocked(targetsApi.list).mockResolvedValue([makeTarget()]);
+    vi.mocked(targetsApi.remove).mockRejectedValue(
+      new Error('Database unavailable.'),
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete Joe’s Pizza' }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Database unavailable.',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Open Joe’s Pizza dashboard' }),
+    ).toBeInTheDocument();
+  });
+
+  it('disables the dashboard delete action during a pending request', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/target-1');
+    vi.mocked(targetsApi.list).mockResolvedValue([makeTarget()]);
+    vi.mocked(targetsApi.get).mockResolvedValue(makeTarget());
+    let finishDeletion: () => void = () => {};
+    vi.mocked(targetsApi.remove).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDeletion = resolve;
+        }),
+    );
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete place' }),
+    );
+
+    expect(
+      await screen.findByRole('button', { name: 'Deleting…' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Import reviews' }),
+    ).toBeDisabled();
+
+    await act(async () => {
+      finishDeletion();
+    });
+    expect(
+      await screen.findByText('Your collection starts here'),
+    ).toBeInTheDocument();
+  });
+
+  it('uses a readable fallback when deletion rejects with a non-Error', async () => {
+    authState.signedIn = true;
+    vi.mocked(targetsApi.list).mockResolvedValue([makeTarget()]);
+    vi.mocked(targetsApi.remove).mockRejectedValue('Database disconnected');
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete Joe’s Pizza' }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not delete this place.',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Open Joe’s Pizza dashboard' }),
+    ).toBeInTheDocument();
   });
 });

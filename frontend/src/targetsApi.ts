@@ -99,6 +99,7 @@ async function request<T>(
         : `Request failed (${response.status}).`);
     throw new Error(message);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -135,6 +136,11 @@ export const targetsApi = {
     );
     return toAnalysisTarget(response.target);
   },
+  remove: (token: string, id: string) =>
+    request<void>(`/api/analysis-targets/${encodeURIComponent(id)}`, token, {
+      method: 'DELETE',
+      body: JSON.stringify({}),
+    }),
   ingest: (token: string, id: string) =>
     request<{ attempt: ApiIngestionAttempt }>(
       `/api/analysis-targets/${encodeURIComponent(id)}/ingestions`,

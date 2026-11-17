@@ -98,10 +98,8 @@
   width: 100%;
   min-width: 0;
   min-height: 220px;
-  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
   text-align: left;
   border: 1px solid #e3e9f2;
   border-radius: 14px;
@@ -116,6 +114,39 @@
   transform: translateY(-2px);
   border-color: #93a8eb;
   box-shadow: 0 9px 23px rgba(45, 71, 132, 0.09);
+}
+.saved-place-card__open {
+  width: 100%;
+  min-height: 220px;
+  flex: 1;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.saved-place-card__open:disabled {
+  cursor: default;
+}
+.saved-place-card__delete {
+  padding: 12px 18px;
+  color: #a22222;
+  font-weight: 700;
+  background: #fff;
+  border: 0;
+  border-top: 1px solid #eef1f7;
+  border-radius: 0 0 13px 13px;
+  text-align: left;
+}
+.saved-place-card__delete:hover:not(:disabled) {
+  background: #fff3f3;
+}
+.saved-place-card__delete:disabled {
+  opacity: 0.5;
 }
 .saved-place-card__heading {
   display: flex;
@@ -250,7 +281,7 @@
   .saved-places__items--grid {
     grid-template-columns: 1fr;
   }
-  .saved-place-card {
+  .saved-place-card__open {
     min-height: 180px;
   }
 }

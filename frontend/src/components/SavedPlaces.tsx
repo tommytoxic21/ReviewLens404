@@ -6,6 +6,8 @@ interface SavedPlacesProps {
   targets: AnalysisTarget[];
   onOpen: (id: string) => void;
   onAdd: () => void;
+  onDelete: (target: AnalysisTarget) => void;
+  deletingId?: string | null;
 }
 
 function sourceLabel(reference: string): string {
@@ -27,6 +29,8 @@ export default function SavedPlaces({
   targets,
   onOpen,
   onAdd,
+  onDelete,
+  deletingId = null,
 }: SavedPlacesProps) {
   const [query, setQuery] = useState('');
   const [layout, setLayout] = useState<'grid' | 'list'>('grid');
@@ -129,50 +133,61 @@ export default function SavedPlaces({
               className={`saved-places__items saved-places__items--${layout}`}
             >
               {filtered.map((target, index) => (
-                <button
-                  key={target.id}
-                  type="button"
-                  className="saved-place-card"
-                  aria-label={`Open ${target.name} dashboard`}
-                  onClick={() => onOpen(target.id)}
-                >
-                  <span className="saved-place-card__heading">
-                    <span
-                      className={`saved-place-card__avatar saved-place-card__avatar--${index % 4}`}
-                      aria-hidden="true"
-                    >
-                      {target.name.trim().charAt(0).toUpperCase() || 'P'}
-                    </span>
-                    <span className="saved-place-card__name-group">
-                      <strong className="saved-place-card__name">
-                        {target.name}
-                      </strong>
-                      <span className="saved-place-card__platform">
-                        {platformLabel(target.platform)}
+                <div key={target.id} className="saved-place-card">
+                  <button
+                    type="button"
+                    className="saved-place-card__open"
+                    aria-label={`Open ${target.name} dashboard`}
+                    onClick={() => onOpen(target.id)}
+                    disabled={deletingId !== null}
+                  >
+                    <span className="saved-place-card__heading">
+                      <span
+                        className={`saved-place-card__avatar saved-place-card__avatar--${index % 4}`}
+                        aria-hidden="true"
+                      >
+                        {target.name.trim().charAt(0).toUpperCase() || 'P'}
+                      </span>
+                      <span className="saved-place-card__name-group">
+                        <strong className="saved-place-card__name">
+                          {target.name}
+                        </strong>
+                        <span className="saved-place-card__platform">
+                          {platformLabel(target.platform)}
+                        </span>
                       </span>
                     </span>
-                  </span>
-                  <span className="saved-place-card__source">
-                    <span className="saved-place-card__source-label">
-                      REVIEW SOURCE
+                    <span className="saved-place-card__source">
+                      <span className="saved-place-card__source-label">
+                        REVIEW SOURCE
+                      </span>
+                      <span
+                        className="saved-place-card__source-value"
+                        title={target.sourceReference}
+                      >
+                        {sourceLabel(target.sourceReference)}
+                      </span>
                     </span>
-                    <span
-                      className="saved-place-card__source-value"
-                      title={target.sourceReference}
-                    >
-                      {sourceLabel(target.sourceReference)}
+                    <span className="saved-place-card__footer">
+                      <span>Open dashboard</span>
+                      <span
+                        className="saved-place-card__arrow"
+                        aria-hidden="true"
+                      >
+                        →
+                      </span>
                     </span>
-                  </span>
-                  <span className="saved-place-card__footer">
-                    <span>Open dashboard</span>
-                    <span
-                      className="saved-place-card__arrow"
-                      aria-hidden="true"
-                    >
-                      →
-                    </span>
-                  </span>
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    className="saved-place-card__delete"
+                    aria-label={`Delete ${target.name}`}
+                    onClick={() => onDelete(target)}
+                    disabled={deletingId !== null}
+                  >
+                    {deletingId === target.id ? 'Deleting…' : 'Delete place'}
+                  </button>
+                </div>
               ))}
             </div>
           )}

@@ -22,6 +22,7 @@ function Workspace() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -179,6 +180,41 @@ function Workspace() {
     }
   };
 
+  const deletePlace = async (target: AnalysisTarget) => {
+    if (deletingId !== null || processing) return;
+
+    const confirmed = window.confirm(
+      `Permanently delete "${target.name}"?\n\nThis will also delete its imported reviews and ingestion history. This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(target.id);
+    setError('');
+    setNotice('');
+    try {
+      await targetsApi.remove(await token(), target.id);
+      setTargets((current) => current.filter((item) => item.id !== target.id));
+
+      if (
+        window.location.pathname === `/targets/${encodeURIComponent(target.id)}`
+      ) {
+        ++targetRequestId.current;
+        window.history.replaceState({}, '', '/');
+        setActive(null);
+        setShowForm(false);
+        setLoading(false);
+      }
+
+      setNotice(`"${target.name}" and its reviews were deleted.`);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not delete this place.',
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const ingest = async () => {
     if (!active) return;
     const targetId = active.id;
@@ -293,7 +329,7 @@ function Workspace() {
                   <select
                     value={active.id}
                     onChange={(event) => navigate(event.target.value)}
-                    disabled={loading || processing}
+                    disabled={loading || processing || deletingId !== null}
                   >
                     {targets.map((target) => (
                       <option key={target.id} value={target.id}>
@@ -306,10 +342,18 @@ function Workspace() {
               <button
                 type="button"
                 className="button primary"
-                disabled={processing}
+                disabled={processing || deletingId !== null}
                 onClick={() => void ingest()}
               >
                 {processing ? 'Importing reviews…' : 'Import reviews'}
+              </button>
+              <button
+                type="button"
+                className="button danger-outline"
+                disabled={processing || deletingId !== null}
+                onClick={() => void deletePlace(active)}
+              >
+                {deletingId === active.id ? 'Deleting…' : 'Delete place'}
               </button>
             </>
           ) : (
@@ -504,6 +548,8 @@ function Workspace() {
           targets={targets}
           onOpen={(id) => navigate(id)}
           onAdd={() => setShowForm(true)}
+          onDelete={(target) => void deletePlace(target)}
+          deletingId={deletingId}
         />
       )}
     </main>

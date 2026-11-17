@@ -6,7 +6,7 @@ import {
   createDatabaseConnection,
   type DatabaseConnection,
 } from '../db/client.js';
-import { analysisTargets } from '../db/schema.js';
+import { analysisTargets, ingestionAttempts, reviews } from '../db/schema.js';
 import {
   createAnalysisTarget,
   deleteAnalysisTargetForOwner,
@@ -206,6 +206,45 @@ describe('AnalysisTarget repository', () => {
 
     expect(deletedTarget).toBe(true);
     expect(retrievedTarget).toBeUndefined();
+  });
+
+  it('deletes a place with reviews and ingestion attempts without affecting other places', async () => {
+    const owner = { userId: 'user_owner_123' };
+    const otherOwner = { userId: 'user_other_456' };
+    const toDelete = await createAnalysisTarget(connection.db, owner, {
+      entityName: 'Place to delete',
+      platform: 'google',
+      sourceUrl: 'https://www.google.com/maps/place/Place+to+delete',
+    });
+    const toKeep = await createAnalysisTarget(connection.db, otherOwner, {
+      entityName: 'Place to keep',
+      platform: 'google',
+      sourceUrl: 'https://www.google.com/maps/place/Place+to+keep',
+    });
+
+    await connection.db.insert(reviews).values([
+      { analysisTargetId: toDelete.id, text: 'A review to remove.', rating: 5 },
+      { analysisTargetId: toKeep.id, text: 'A review to keep.', rating: 4 },
+    ]);
+    await connection.db.insert(ingestionAttempts).values([
+      { analysisTargetId: toDelete.id, status: 'succeeded', savedCount: 1 },
+      { analysisTargetId: toKeep.id, status: 'succeeded', savedCount: 1 },
+    ]);
+
+    expect(
+      await deleteAnalysisTargetForOwner(connection.db, owner, toDelete.id),
+    ).toBe(true);
+
+    const targetsLeft = await connection.db.select().from(analysisTargets);
+    const reviewsLeft = await connection.db.select().from(reviews);
+    const attemptsLeft = await connection.db.select().from(ingestionAttempts);
+
+    expect(targetsLeft).toHaveLength(1);
+    expect(targetsLeft[0]?.id).toBe(toKeep.id);
+    expect(reviewsLeft).toHaveLength(1);
+    expect(reviewsLeft[0]?.analysisTargetId).toBe(toKeep.id);
+    expect(attemptsLeft).toHaveLength(1);
+    expect(attemptsLeft[0]?.analysisTargetId).toBe(toKeep.id);
   });
 
   it('ignores client-submitted ownership fields', async () => {

@@ -419,3 +419,12 @@ input[readonly] {
     gap: 9px;
   }
 }
+
+.danger-outline {
+  color: #a22222;
+  background: #fff;
+  border-color: #e6b4b4;
+}
+.danger-outline:hover:not(:disabled) {
+  background: #fff1f1;
+}

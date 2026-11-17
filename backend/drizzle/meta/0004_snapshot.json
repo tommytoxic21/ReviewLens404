@@ -158,12 +158,8 @@
           "name": "ingestion_attempts_analysis_target_id_analysis_targets_id_fk",
           "tableFrom": "ingestion_attempts",
           "tableTo": "analysis_targets",
-          "columnsFrom": [
-            "analysis_target_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["analysis_target_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -294,12 +290,8 @@
           "name": "reviews_analysis_target_id_analysis_targets_id_fk",
           "tableFrom": "reviews",
           "tableTo": "analysis_targets",
-          "columnsFrom": [
-            "analysis_target_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["analysis_target_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

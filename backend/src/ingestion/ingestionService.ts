@@ -90,7 +90,8 @@ export async function ingestReviewsForOwnedTarget(
     });
     const normalized = normalizeSourceReviews(newReviews);
     rejectedCount =
-      normalized.rejectedReviewCount + (sourceReviews.length - newReviews.length);
+      normalized.rejectedReviewCount +
+      (sourceReviews.length - newReviews.length);
 
     if (normalized.reviews.length === 0 && sourceReviews.length > 0) {
       throw new IngestionError(

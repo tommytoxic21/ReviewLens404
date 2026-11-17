@@ -662,9 +662,13 @@ describe('App', () => {
     });
 
     render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Import reviews' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Import reviews' }),
+    );
     expect(
-      await screen.findByText('No additional reviews were available to import.'),
+      await screen.findByText(
+        'No additional reviews were available to import.',
+      ),
     ).toBeInTheDocument();
   });
 

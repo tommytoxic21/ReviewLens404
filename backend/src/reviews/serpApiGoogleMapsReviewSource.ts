@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { AnalysisTarget } from '../db/schema.js';
 import {
   type ReviewSource,
@@ -19,6 +20,9 @@ interface JsonRecord {
 
 const SERP_API_ENDPOINT = 'https://serpapi.com/search.json';
 const REQUEST_TIMEOUT_MS = 15_000;
+const REVIEWS_PER_IMPORT = 10;
+// Bound the number of paid provider requests made by a single button click.
+const MAX_REVIEW_PAGES_PER_IMPORT = 25;
 const SHORT_LINK_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl']);
 
 function asRecord(value: unknown): JsonRecord | undefined {
@@ -126,10 +130,27 @@ function sourceReviewsFromPayload(payload: JsonRecord): SourceReview[] {
     const user = asRecord(review.user);
     const extractedSnippet = asRecord(review.extracted_snippet);
 
+    const reviewText = extractedSnippet?.original ?? review.snippet;
+    // Some provider entries omit review_id. Use a stable fallback so repeated
+    // imports can still identify those entries and avoid duplicates.
+    const sourceReviewId =
+      asNonEmptyString(review.review_id) ??
+      asNonEmptyString(review.link) ??
+      `fingerprint:${createHash('sha256')
+        .update(
+          JSON.stringify([
+            reviewText,
+            review.rating,
+            user?.name,
+            review.iso_date ?? review.iso_date_of_last_edit,
+          ]),
+        )
+        .digest('hex')}`;
+
     return [
       {
-        sourceReviewId: review.review_id,
-        reviewText: extractedSnippet?.original ?? review.snippet,
+        sourceReviewId,
+        reviewText,
         rating: review.rating,
         reviewerName: user?.name,
         reviewedAt: review.iso_date ?? review.iso_date_of_last_edit,
@@ -251,7 +272,10 @@ export class SerpApiGoogleMapsReviewSource implements ReviewSource {
     return resolvedUrl.toString();
   }
 
-  async fetchReviews(target: AnalysisTarget): Promise<readonly SourceReview[]> {
+  async fetchReviews(
+    target: AnalysisTarget,
+    excludedSourceReviewIds: ReadonlySet<string> = new Set(),
+  ): Promise<readonly SourceReview[]> {
     const resolvedSourceUrl = await this.resolveShortLink(target.sourceUrl);
     const reference = extractGoogleMapsPlaceReference(resolvedSourceUrl);
     let dataId = reference.dataId;
@@ -280,12 +304,43 @@ export class SerpApiGoogleMapsReviewSource implements ReviewSource {
       }
     }
 
-    const reviewPayload = await this.request({
-      engine: 'google_maps_reviews',
-      hl: 'en',
-      ...(dataId ? { data_id: dataId } : { place_id: placeId! }),
-    });
+    // SerpApi returns the first page by default. Each import restarts at page
+    // one and walks forward until it finds reviews we have not already stored.
+    // We deliberately do not persist next_page_token values: provider tokens
+    // may expire between separate button clicks, and saved reviews are the
+    // durable source of truth for determining which records are new.
+    const seenIds = new Set(excludedSourceReviewIds);
+    const seenPageTokens = new Set<string>();
+    const newReviews: SourceReview[] = [];
+    let pageToken: string | undefined;
 
-    return sourceReviewsFromPayload(reviewPayload);
+    for (let page = 0; page < MAX_REVIEW_PAGES_PER_IMPORT; page++) {
+      const reviewPayload = await this.request({
+        engine: 'google_maps_reviews',
+        hl: 'en',
+        sort_by: 'newestFirst',
+        num: String(REVIEWS_PER_IMPORT),
+        ...(dataId ? { data_id: dataId } : { place_id: placeId! }),
+        ...(pageToken ? { next_page_token: pageToken } : {}),
+      });
+
+      for (const review of sourceReviewsFromPayload(reviewPayload)) {
+        const reviewId = asNonEmptyString(review.sourceReviewId);
+        if (reviewId && seenIds.has(reviewId)) continue;
+        if (reviewId) seenIds.add(reviewId);
+        newReviews.push(review);
+        if (newReviews.length === REVIEWS_PER_IMPORT) return newReviews;
+      }
+
+      const pagination = asRecord(reviewPayload.serpapi_pagination);
+      const nextToken = asNonEmptyString(pagination?.next_page_token);
+      if (!nextToken || seenPageTokens.has(nextToken)) return newReviews;
+      seenPageTokens.add(nextToken);
+      pageToken = nextToken;
+    }
+
+    // Don't claim to have reached the end if a safety limit interrupted us.
+    // Returning a partial batch is safe; subsequent imports rescan for new IDs.
+    return newReviews;
   }
 }

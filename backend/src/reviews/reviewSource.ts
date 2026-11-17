@@ -10,7 +10,10 @@ export interface SourceReview {
 }
 
 export interface ReviewSource {
-  fetchReviews(target: AnalysisTarget): Promise<readonly SourceReview[]>;
+  fetchReviews(
+    target: AnalysisTarget,
+    excludedSourceReviewIds?: ReadonlySet<string>,
+  ): Promise<readonly SourceReview[]>;
 }
 
 export class ReviewSourceError extends Error {

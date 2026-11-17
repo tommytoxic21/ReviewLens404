@@ -29,6 +29,13 @@
       "when": 1793742050988,
       "tag": "0003_reconcile-ingestion-schema",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794873600000,
+      "tag": "0004_dedupe_source_reviews",
+      "breakpoints": true
     }
   ]
 }

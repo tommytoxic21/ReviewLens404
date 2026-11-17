@@ -30,6 +30,7 @@ interface ApiIngestionAttempt {
   status: string;
   errorMessage: string | null;
   rejectedCount: number;
+  savedCount?: number;
 }
 
 interface ApiTargetWorkspace {

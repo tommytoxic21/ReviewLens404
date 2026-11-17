@@ -646,6 +646,28 @@ describe('App', () => {
     expect(screen.getByLabelText(/your question/i)).toBeEnabled();
   });
 
+  it('explains when another import finds no additional reviews', async () => {
+    authState.signedIn = true;
+    window.history.replaceState({}, '', '/targets/target-1');
+    const current = makeTarget({ ingestionStatus: 'succeeded' });
+    vi.mocked(targetsApi.list).mockResolvedValue([current]);
+    vi.mocked(targetsApi.get).mockResolvedValue(current);
+    vi.mocked(targetsApi.ingest).mockResolvedValue({
+      attempt: {
+        status: 'succeeded',
+        errorMessage: null,
+        rejectedCount: 0,
+        savedCount: 0,
+      },
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Import reviews' }));
+    expect(
+      await screen.findByText('No additional reviews were available to import.'),
+    ).toBeInTheDocument();
+  });
+
   it('shows an error when review ingestion fails', async () => {
     authState.signedIn = true;
     window.history.replaceState({}, '', '/targets/target-1');

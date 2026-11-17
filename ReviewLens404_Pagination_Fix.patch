@@ -1,0 +1,872 @@
+--- /dev/null
++++ b/backend/drizzle/0004_dedupe_source_reviews.sql
+@@ -0,0 +1,13 @@
++-- Remove duplicate reviews saved before pagination/deduplication was fixed.
++-- Preserve the earliest stored copy for each target and provider review ID.
++DELETE FROM "reviews" newer
++USING "reviews" older
++WHERE newer."analysis_target_id" = older."analysis_target_id"
++  AND newer."source_review_id" = older."source_review_id"
++  AND newer."source_review_id" IS NOT NULL
++  AND (newer."created_at", newer."id") > (older."created_at", older."id");
++--> statement-breakpoint
++-- Protect against duplicates on subsequent imports, including concurrent ones.
++CREATE UNIQUE INDEX IF NOT EXISTS "reviews_target_source_review_id_unique"
++  ON "reviews" ("analysis_target_id", "source_review_id")
++  WHERE "source_review_id" IS NOT NULL;
+--- /dev/null
++++ b/backend/drizzle/meta/0004_snapshot.json
+@@ -0,0 +1,334 @@
++{
++  "id": "bcfb278d-6c49-42a2-a50f-3d9e5b426c12",
++  "prevId": "05b22c82-83a4-4746-adaa-a12f28937700",
++  "version": "7",
++  "dialect": "postgresql",
++  "tables": {
++    "public.analysis_targets": {
++      "name": "analysis_targets",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "owner_id": {
++          "name": "owner_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "entity_name": {
++          "name": "entity_name",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "platform": {
++          "name": "platform",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "source_url": {
++          "name": "source_url",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "analysis_targets_owner_id_idx": {
++          "name": "analysis_targets_owner_id_idx",
++          "columns": [
++            {
++              "expression": "owner_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {},
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {},
++      "isRLSEnabled": false
++    },
++    "public.ingestion_attempts": {
++      "name": "ingestion_attempts",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "analysis_target_id": {
++          "name": "analysis_target_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "status": {
++          "name": "status",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "'processing'"
++        },
++        "received_count": {
++          "name": "received_count",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "saved_count": {
++          "name": "saved_count",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "rejected_count": {
++          "name": "rejected_count",
++          "type": "integer",
++          "primaryKey": false,
++          "notNull": true,
++          "default": 0
++        },
++        "error_message": {
++          "name": "error_message",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "started_at": {
++          "name": "started_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        },
++        "completed_at": {
++          "name": "completed_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": false
++        }
++      },
++      "indexes": {
++        "ingestion_attempts_target_id_idx": {
++          "name": "ingestion_attempts_target_id_idx",
++          "columns": [
++            {
++              "expression": "analysis_target_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "ingestion_attempts_analysis_target_id_analysis_targets_id_fk": {
++          "name": "ingestion_attempts_analysis_target_id_analysis_targets_id_fk",
++          "tableFrom": "ingestion_attempts",
++          "tableTo": "analysis_targets",
++          "columnsFrom": [
++            "analysis_target_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "ingestion_attempts_valid_status": {
++          "name": "ingestion_attempts_valid_status",
++          "value": "\"ingestion_attempts\".\"status\" IN ('processing', 'succeeded', 'failed')"
++        },
++        "ingestion_attempts_nonnegative_counts": {
++          "name": "ingestion_attempts_nonnegative_counts",
++          "value": "\"ingestion_attempts\".\"received_count\" >= 0\n        AND \"ingestion_attempts\".\"saved_count\" >= 0\n        AND \"ingestion_attempts\".\"rejected_count\" >= 0"
++        }
++      },
++      "isRLSEnabled": false
++    },
++    "public.reviews": {
++      "name": "reviews",
++      "schema": "",
++      "columns": {
++        "id": {
++          "name": "id",
++          "type": "uuid",
++          "primaryKey": true,
++          "notNull": true,
++          "default": "gen_random_uuid()"
++        },
++        "analysis_target_id": {
++          "name": "analysis_target_id",
++          "type": "uuid",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "text": {
++          "name": "text",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "rating": {
++          "name": "rating",
++          "type": "real",
++          "primaryKey": false,
++          "notNull": true
++        },
++        "source_review_id": {
++          "name": "source_review_id",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "reviewer_name": {
++          "name": "reviewer_name",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "review_date": {
++          "name": "review_date",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "review_url": {
++          "name": "review_url",
++          "type": "text",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "source_metadata": {
++          "name": "source_metadata",
++          "type": "jsonb",
++          "primaryKey": false,
++          "notNull": false
++        },
++        "created_at": {
++          "name": "created_at",
++          "type": "timestamp with time zone",
++          "primaryKey": false,
++          "notNull": true,
++          "default": "now()"
++        }
++      },
++      "indexes": {
++        "reviews_analysis_target_id_idx": {
++          "name": "reviews_analysis_target_id_idx",
++          "columns": [
++            {
++              "expression": "analysis_target_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": false,
++          "concurrently": false,
++          "method": "btree",
++          "with": {}
++        },
++        "reviews_target_source_review_id_unique": {
++          "name": "reviews_target_source_review_id_unique",
++          "columns": [
++            {
++              "expression": "analysis_target_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            },
++            {
++              "expression": "source_review_id",
++              "isExpression": false,
++              "asc": true,
++              "nulls": "last"
++            }
++          ],
++          "isUnique": true,
++          "concurrently": false,
++          "method": "btree",
++          "where": "\"source_review_id\" IS NOT NULL",
++          "with": {}
++        }
++      },
++      "foreignKeys": {
++        "reviews_analysis_target_id_analysis_targets_id_fk": {
++          "name": "reviews_analysis_target_id_analysis_targets_id_fk",
++          "tableFrom": "reviews",
++          "tableTo": "analysis_targets",
++          "columnsFrom": [
++            "analysis_target_id"
++          ],
++          "columnsTo": [
++            "id"
++          ],
++          "onDelete": "cascade",
++          "onUpdate": "no action"
++        }
++      },
++      "compositePrimaryKeys": {},
++      "uniqueConstraints": {},
++      "policies": {},
++      "checkConstraints": {
++        "reviews_rating_range": {
++          "name": "reviews_rating_range",
++          "value": "\"reviews\".\"rating\" BETWEEN 1 AND 5"
++        },
++        "reviews_text_not_empty": {
++          "name": "reviews_text_not_empty",
++          "value": "length(btrim(\"reviews\".\"text\")) > 0"
++        }
++      },
++      "isRLSEnabled": false
++    }
++  },
++  "enums": {},
++  "schemas": {},
++  "sequences": {},
++  "roles": {},
++  "policies": {},
++  "views": {},
++  "_meta": {
++    "columns": {},
++    "schemas": {},
++    "tables": {}
++  }
++}
+--- a/backend/drizzle/meta/_journal.json
++++ b/backend/drizzle/meta/_journal.json
+@@ -29,6 +29,13 @@
+       "when": 1793742050988,
+       "tag": "0003_reconcile-ingestion-schema",
+       "breakpoints": true
++    },
++    {
++      "idx": 4,
++      "version": "7",
++      "when": 1794873600000,
++      "tag": "0004_dedupe_source_reviews",
++      "breakpoints": true
+     }
+   ]
+ }
+--- a/backend/src/db/schema.ts
++++ b/backend/src/db/schema.ts
+@@ -2,6 +2,7 @@
+ import {
+   check,
+   index,
++  uniqueIndex,
+   integer,
+   jsonb,
+   pgTable,
+@@ -52,6 +53,9 @@
+   },
+   (table) => [
+     index('reviews_analysis_target_id_idx').on(table.analysisTargetId),
++    uniqueIndex('reviews_target_source_review_id_unique')
++      .on(table.analysisTargetId, table.sourceReviewId)
++      .where(sql`${table.sourceReviewId} IS NOT NULL`),
+     check('reviews_rating_range', sql`${table.rating} BETWEEN 1 AND 5`),
+     check('reviews_text_not_empty', sql`length(btrim(${table.text})) > 0`),
+   ],
+--- a/backend/src/ingestion/ingestionService.test.ts
++++ b/backend/src/ingestion/ingestionService.test.ts
+@@ -108,6 +108,107 @@
+     });
+   });
+ 
++  it('passes previously stored review IDs to the source on the next import', async () => {
++    const owner = { userId: 'user_owner_a' };
++    const target = await createAnalysisTarget(connection.db, owner, {
++      entityName: 'Repeated Import Coffee',
++      platform: 'google',
++      sourceUrl: 'https://www.google.com/maps/place/Repeated+Import+Coffee',
++    });
++    const reviewSource = {
++      fetchReviews: vi
++        .fn()
++        .mockResolvedValueOnce([
++          {
++            sourceReviewId: 'review-1',
++            reviewText: 'First review.',
++            rating: 5,
++          },
++        ])
++        .mockResolvedValueOnce([
++          {
++            sourceReviewId: 'review-2',
++            reviewText: 'Second review.',
++            rating: 4,
++          },
++        ]),
++    };
++
++    await ingestReviewsForOwnedTarget(
++      connection.db,
++      reviewSource,
++      owner,
++      target.id,
++    );
++    const result = await ingestReviewsForOwnedTarget(
++      connection.db,
++      reviewSource,
++      owner,
++      target.id,
++    );
++    const persisted = await listReviewsForOwnedTarget(
++      connection.db,
++      owner,
++      target.id,
++    );
++
++    expect(result.attempt.savedCount).toBe(1);
++    expect(reviewSource.fetchReviews).toHaveBeenNthCalledWith(1, target);
++    expect(reviewSource.fetchReviews).toHaveBeenNthCalledWith(
++      2,
++      target,
++      new Set(['review-1']),
++    );
++    expect(persisted.map((review) => review.sourceReviewId).sort()).toEqual([
++      'review-1',
++      'review-2',
++    ]);
++  });
++
++  it('records a successful zero-review import when no more reviews remain', async () => {
++    const owner = { userId: 'user_owner_a' };
++    const target = await createAnalysisTarget(connection.db, owner, {
++      entityName: 'Exhausted Coffee',
++      platform: 'google',
++      sourceUrl: 'https://www.google.com/maps/place/Exhausted+Coffee',
++    });
++    const reviewSource = {
++      fetchReviews: vi
++        .fn()
++        .mockResolvedValueOnce([
++          {
++            sourceReviewId: 'review-1',
++            reviewText: 'Existing review.',
++            rating: 5,
++          },
++        ])
++        .mockResolvedValueOnce([]),
++    };
++
++    await ingestReviewsForOwnedTarget(
++      connection.db,
++      reviewSource,
++      owner,
++      target.id,
++    );
++    const result = await ingestReviewsForOwnedTarget(
++      connection.db,
++      reviewSource,
++      owner,
++      target.id,
++    );
++
++    expect(result.attempt).toMatchObject({
++      status: 'succeeded',
++      savedCount: 0,
++      receivedCount: 0,
++      rejectedCount: 0,
++    });
++    expect(
++      await listReviewsForOwnedTarget(connection.db, owner, target.id),
++    ).toHaveLength(1);
++  });
++
+   it('denies cross-user review reads and ingestion before calling the source', async () => {
+     const ownerA = { userId: 'user_owner_a' };
+     const ownerB = { userId: 'user_owner_b' };
+--- a/backend/src/ingestion/ingestionService.ts
++++ b/backend/src/ingestion/ingestionService.ts
+@@ -61,33 +61,65 @@
+   let rejectedCount = 0;
+ 
+   try {
+-    const sourceReviews = await reviewSource.fetchReviews(target);
+-    const normalized = normalizeSourceReviews(sourceReviews);
++    // Only examine review IDs from this already-authorized target.
++    const storedReviews = await db
++      .select({ sourceReviewId: reviews.sourceReviewId })
++      .from(reviews)
++      .where(eq(reviews.analysisTargetId, targetId));
++    const existingIds = new Set(
++      storedReviews.flatMap((review) =>
++        review.sourceReviewId ? [review.sourceReviewId] : [],
++      ),
++    );
++    const sourceReviews = await (existingIds.size
++      ? reviewSource.fetchReviews(target, existingIds)
++      : reviewSource.fetchReviews(target));
+     receivedCount = sourceReviews.length;
+-    rejectedCount = normalized.rejectedReviewCount;
+ 
+-    if (normalized.reviews.length === 0) {
++    // Defense in depth for mocked/alternate review sources that do not
++    // implement pagination or that return duplicate IDs in one response.
++    const newReviews = sourceReviews.filter((review) => {
++      const id =
++        typeof review.sourceReviewId === 'string'
++          ? review.sourceReviewId.trim()
++          : '';
++      if (id && existingIds.has(id)) return false;
++      if (id) existingIds.add(id);
++      return true;
++    });
++    const normalized = normalizeSourceReviews(newReviews);
++    rejectedCount =
++      normalized.rejectedReviewCount + (sourceReviews.length - newReviews.length);
++
++    if (normalized.reviews.length === 0 && sourceReviews.length > 0) {
++      throw new IngestionError(
++        'No usable new reviews with both review text and rating were returned.',
++      );
++    }
++    if (normalized.reviews.length === 0 && storedReviews.length === 0) {
+       throw new IngestionError(
+         'No usable reviews with both review text and rating were returned.',
+       );
+     }
+ 
+     const completedAttempt = await db.transaction(async (transaction) => {
+-      const persistedReviews = await transaction
+-        .insert(reviews)
+-        .values(
+-          normalized.reviews.map((review) => ({
+-            analysisTargetId: targetId,
+-            text: review.reviewText,
+-            rating: review.rating,
+-            sourceReviewId: review.sourceReviewId,
+-            reviewerName: review.reviewerName,
+-            reviewDate: review.reviewedAt?.toISOString() ?? null,
+-            reviewUrl: review.reviewUrl,
+-          })),
+-        )
+-        .onConflictDoNothing()
+-        .returning({ id: reviews.id });
++      const persistedReviews = normalized.reviews.length
++        ? await transaction
++            .insert(reviews)
++            .values(
++              normalized.reviews.map((review) => ({
++                analysisTargetId: targetId,
++                text: review.reviewText,
++                rating: review.rating,
++                sourceReviewId: review.sourceReviewId,
++                reviewerName: review.reviewerName,
++                reviewDate: review.reviewedAt?.toISOString() ?? null,
++                reviewUrl: review.reviewUrl,
++              })),
++            )
++            .onConflictDoNothing()
++            .returning({ id: reviews.id })
++        : [];
+       const [completed] = await transaction
+         .update(ingestionAttempts)
+         .set({
+--- a/backend/src/reviews/reviewSource.ts
++++ b/backend/src/reviews/reviewSource.ts
+@@ -10,7 +10,10 @@
+ }
+ 
+ export interface ReviewSource {
+-  fetchReviews(target: AnalysisTarget): Promise<readonly SourceReview[]>;
++  fetchReviews(
++    target: AnalysisTarget,
++    excludedSourceReviewIds?: ReadonlySet<string>,
++  ): Promise<readonly SourceReview[]>;
+ }
+ 
+ export class ReviewSourceError extends Error {
+--- a/backend/src/reviews/serpApiGoogleMapsReviewSource.test.ts
++++ b/backend/src/reviews/serpApiGoogleMapsReviewSource.test.ts
+@@ -81,6 +81,98 @@
+     );
+   });
+ 
++  it('imports the next ten reviews on a later click instead of replaying page one', async () => {
++    const firstTen = Array.from({ length: 10 }, (_, index) => ({
++      review_id: `review-${index + 1}`,
++      snippet: `Review ${index + 1}`,
++      rating: 5,
++    }));
++    const secondTen = Array.from({ length: 10 }, (_, index) => ({
++      review_id: `review-${index + 11}`,
++      snippet: `Review ${index + 11}`,
++      rating: 4,
++    }));
++    const fetchImplementation = vi.fn(async (input: RequestInfo | URL) => {
++      const url = new URL(input.toString());
++      return jsonResponse(
++        url.searchParams.get('next_page_token') === 'page-2'
++          ? { reviews: secondTen }
++          : {
++              reviews: firstTen,
++              serpapi_pagination: { next_page_token: 'page-2' },
++            },
++      );
++    });
++    const source = new SerpApiGoogleMapsReviewSource(
++      'private-api-key',
++      fetchImplementation,
++    );
++    const place = target(
++      'https://www.google.com/maps/place/Test/?query_place_id=ChITest',
++    );
++
++    const first = await source.fetchReviews(place);
++    expect(first).toHaveLength(10);
++    expect(first[0]?.sourceReviewId).toBe('review-1');
++    expect(fetchImplementation).toHaveBeenCalledTimes(1);
++    const firstUrl = fetchImplementation.mock.calls[0]![0] as URL;
++    expect(firstUrl.searchParams.get('num')).toBe('10');
++    expect(firstUrl.searchParams.get('sort_by')).toBe('newestFirst');
++
++    const second = await source.fetchReviews(
++      place,
++      new Set(first.map((review) => String(review.sourceReviewId))),
++    );
++    expect(second).toHaveLength(10);
++    expect(second[0]?.sourceReviewId).toBe('review-11');
++    expect(second[9]?.sourceReviewId).toBe('review-20');
++    expect(fetchImplementation).toHaveBeenCalledTimes(3);
++    const secondPageUrl = fetchImplementation.mock.calls[2]![0] as URL;
++    expect(secondPageUrl.searchParams.get('next_page_token')).toBe('page-2');
++  });
++
++  it('returns an empty batch when no additional reviews exist', async () => {
++    const fetchImplementation = vi.fn(async () =>
++      jsonResponse({
++        reviews: [
++          {
++            review_id: 'already-imported',
++            snippet: 'Existing review',
++            rating: 5,
++          },
++        ],
++      }),
++    );
++    const source = new SerpApiGoogleMapsReviewSource(
++      'private-api-key',
++      fetchImplementation,
++    );
++    const newReviews = await source.fetchReviews(
++      target('https://www.google.com/maps/place/Test/?query_place_id=ChITest'),
++      new Set(['already-imported']),
++    );
++    expect(newReviews).toEqual([]);
++    expect(fetchImplementation).toHaveBeenCalledTimes(1);
++  });
++
++  it('stops on a repeated pagination token rather than looping indefinitely', async () => {
++    const fetchImplementation = vi.fn(async () =>
++      jsonResponse({
++        reviews: [{ review_id: 'review-1', snippet: 'First', rating: 4 }],
++        serpapi_pagination: { next_page_token: 'stuck-page' },
++      }),
++    );
++    const source = new SerpApiGoogleMapsReviewSource(
++      'private-api-key',
++      fetchImplementation,
++    );
++    const reviews = await source.fetchReviews(
++      target('https://www.google.com/maps/place/Test/?query_place_id=ChITest'),
++    );
++    expect(reviews).toHaveLength(1);
++    expect(fetchImplementation).toHaveBeenCalledTimes(2);
++  });
++
+   it('resolves a place URL through a Google Maps search before reviews', async () => {
+     const fetchImplementation = vi
+       .fn()
+--- a/backend/src/reviews/serpApiGoogleMapsReviewSource.ts
++++ b/backend/src/reviews/serpApiGoogleMapsReviewSource.ts
+@@ -1,3 +1,4 @@
++import { createHash } from 'node:crypto';
+ import type { AnalysisTarget } from '../db/schema.js';
+ import {
+   type ReviewSource,
+@@ -19,6 +20,9 @@
+ 
+ const SERP_API_ENDPOINT = 'https://serpapi.com/search.json';
+ const REQUEST_TIMEOUT_MS = 15_000;
++const REVIEWS_PER_IMPORT = 10;
++// Bound the number of paid provider requests made by a single button click.
++const MAX_REVIEW_PAGES_PER_IMPORT = 25;
+ const SHORT_LINK_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl']);
+ 
+ function asRecord(value: unknown): JsonRecord | undefined {
+@@ -126,10 +130,27 @@
+     const user = asRecord(review.user);
+     const extractedSnippet = asRecord(review.extracted_snippet);
+ 
++    const reviewText = extractedSnippet?.original ?? review.snippet;
++    // Some provider entries omit review_id. Use a stable fallback so repeated
++    // imports can still identify those entries and avoid duplicates.
++    const sourceReviewId =
++      asNonEmptyString(review.review_id) ??
++      asNonEmptyString(review.link) ??
++      `fingerprint:${createHash('sha256')
++        .update(
++          JSON.stringify([
++            reviewText,
++            review.rating,
++            user?.name,
++            review.iso_date ?? review.iso_date_of_last_edit,
++          ]),
++        )
++        .digest('hex')}`;
++
+     return [
+       {
+-        sourceReviewId: review.review_id,
+-        reviewText: extractedSnippet?.original ?? review.snippet,
++        sourceReviewId,
++        reviewText,
+         rating: review.rating,
+         reviewerName: user?.name,
+         reviewedAt: review.iso_date ?? review.iso_date_of_last_edit,
+@@ -251,7 +272,10 @@
+     return resolvedUrl.toString();
+   }
+ 
+-  async fetchReviews(target: AnalysisTarget): Promise<readonly SourceReview[]> {
++  async fetchReviews(
++    target: AnalysisTarget,
++    excludedSourceReviewIds: ReadonlySet<string> = new Set(),
++  ): Promise<readonly SourceReview[]> {
+     const resolvedSourceUrl = await this.resolveShortLink(target.sourceUrl);
+     const reference = extractGoogleMapsPlaceReference(resolvedSourceUrl);
+     let dataId = reference.dataId;
+@@ -280,12 +304,43 @@
+       }
+     }
+ 
+-    const reviewPayload = await this.request({
+-      engine: 'google_maps_reviews',
+-      hl: 'en',
+-      ...(dataId ? { data_id: dataId } : { place_id: placeId! }),
+-    });
+-
+-    return sourceReviewsFromPayload(reviewPayload);
+-  }
+-}
++    // SerpApi returns the first page by default. Each import restarts at page
++    // one and walks forward until it finds reviews we have not already stored.
++    // We deliberately do not persist next_page_token values: provider tokens
++    // may expire between separate button clicks, and saved reviews are the
++    // durable source of truth for determining which records are new.
++    const seenIds = new Set(excludedSourceReviewIds);
++    const seenPageTokens = new Set<string>();
++    const newReviews: SourceReview[] = [];
++    let pageToken: string | undefined;
++
++    for (let page = 0; page < MAX_REVIEW_PAGES_PER_IMPORT; page++) {
++      const reviewPayload = await this.request({
++        engine: 'google_maps_reviews',
++        hl: 'en',
++        sort_by: 'newestFirst',
++        num: String(REVIEWS_PER_IMPORT),
++        ...(dataId ? { data_id: dataId } : { place_id: placeId! }),
++        ...(pageToken ? { next_page_token: pageToken } : {}),
++      });
++
++      for (const review of sourceReviewsFromPayload(reviewPayload)) {
++        const reviewId = asNonEmptyString(review.sourceReviewId);
++        if (reviewId && seenIds.has(reviewId)) continue;
++        if (reviewId) seenIds.add(reviewId);
++        newReviews.push(review);
++        if (newReviews.length === REVIEWS_PER_IMPORT) return newReviews;
++      }
++
++      const pagination = asRecord(reviewPayload.serpapi_pagination);
++      const nextToken = asNonEmptyString(pagination?.next_page_token);
++      if (!nextToken || seenPageTokens.has(nextToken)) return newReviews;
++      seenPageTokens.add(nextToken);
++      pageToken = nextToken;
++    }
++
++    // Don't claim to have reached the end if a safety limit interrupted us.
++    // Returning a partial batch is safe; subsequent imports rescan for new IDs.
++    return newReviews;
++  }
++}
+--- a/frontend/src/App.test.tsx
++++ b/frontend/src/App.test.tsx
+@@ -646,6 +646,28 @@
+     expect(screen.getByLabelText(/your question/i)).toBeEnabled();
+   });
+ 
++  it('explains when another import finds no additional reviews', async () => {
++    authState.signedIn = true;
++    window.history.replaceState({}, '', '/targets/target-1');
++    const current = makeTarget({ ingestionStatus: 'succeeded' });
++    vi.mocked(targetsApi.list).mockResolvedValue([current]);
++    vi.mocked(targetsApi.get).mockResolvedValue(current);
++    vi.mocked(targetsApi.ingest).mockResolvedValue({
++      attempt: {
++        status: 'succeeded',
++        errorMessage: null,
++        rejectedCount: 0,
++        savedCount: 0,
++      },
++    });
++
++    render(<App />);
++    fireEvent.click(await screen.findByRole('button', { name: 'Import reviews' }));
++    expect(
++      await screen.findByText('No additional reviews were available to import.'),
++    ).toBeInTheDocument();
++  });
++
+   it('shows an error when review ingestion fails', async () => {
+     authState.signedIn = true;
+     window.history.replaceState({}, '', '/targets/target-1');
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -190,9 +190,13 @@
+     setError('');
+     setNotice('');
+     try {
+-      await targetsApi.ingest(await token(), targetId);
++      const result = await targetsApi.ingest(await token(), targetId);
+       if (isCurrentTarget()) {
+-        setNotice('Review ingestion completed successfully.');
++        setNotice(
++          result.attempt.savedCount === 0
++            ? 'No additional reviews were available to import.'
++            : 'Review ingestion completed successfully.',
++        );
+         await openTarget(targetId);
+       }
+     } catch (err) {
+--- a/frontend/src/targetsApi.ts
++++ b/frontend/src/targetsApi.ts
+@@ -30,6 +30,7 @@
+   status: string;
+   errorMessage: string | null;
+   rejectedCount: number;
++  savedCount?: number;
+ }
+ 
+ interface ApiTargetWorkspace {

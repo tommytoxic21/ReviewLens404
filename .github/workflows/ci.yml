@@ -40,6 +40,12 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+      - name: Critical Q&A integration tests
+        run: npm test -- src/qa/qaRoutes.integration.test.ts
+      - name: Deterministic Q&A tests
+        run: npm test -- src/qa/qaRoutes.test.ts src/qa/qaService.test.ts src/qa/openAiReviewQa.test.ts
+      - name: Scope-guard evaluation set
+        run: npm test -- src/qa/scopeGuardEvaluation.test.ts
       - run: npm run test:changed-coverage
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}

@@ -36,7 +36,7 @@ describe('SerpApiGoogleMapsReviewSource', () => {
   });
 
   it('uses the source URL identifier and preserves provider metadata', async () => {
-    const fetchImplementation = vi.fn(async () =>
+    const fetchImplementation = vi.fn<typeof fetch>(async () =>
       jsonResponse({
         reviews: [
           {

@@ -20,7 +20,7 @@ interface JsonRecord {
 
 const SERP_API_ENDPOINT = 'https://serpapi.com/search.json';
 const REQUEST_TIMEOUT_MS = 15_000;
-const REVIEWS_PER_IMPORT = 10;
+const REVIEWS_PER_IMPORT = 30;
 // Bound the number of paid provider requests made by a single button click.
 const MAX_REVIEW_PAGES_PER_IMPORT = 25;
 const SHORT_LINK_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl']);

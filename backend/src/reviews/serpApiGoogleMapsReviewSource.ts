@@ -71,7 +71,11 @@ export function extractGoogleMapsPlaceReference(
 ): PlaceReference {
   const url = new URL(sourceUrl);
   const decoded = decodedUrlText(url);
-  const dataId = decoded.match(/0x[0-9a-f]+:0x[0-9a-f]+/i)?.[0];
+  // !5s can identify a containing building or floor before the actual place.
+  // Only !1s identifies the place whose reviews we should request.
+  const dataId = decoded.match(
+    /!1s(0x[0-9a-f]+:0x[0-9a-f]+)(?=!|\/|[?&#]|$)/i,
+  )?.[1];
   const placeId =
     url.searchParams.get('query_place_id') ??
     decoded.match(/(?:!1s|\b)(ChI[A-Za-z0-9_-]+)/)?.[1];

@@ -24,6 +24,70 @@ function jsonResponse(body: unknown) {
 }
 
 describe('SerpApiGoogleMapsReviewSource', () => {
+  const popeyesUrl =
+    'https://www.google.com/maps/place/Popeyes+Louisiana+Kitchen/' +
+    '@40.7350495,-74.1898732,17z/data=!3m2!4b1' +
+    '!5s0x89c25365efb4ee71:0xa445fcf8a0cad745!4m6!3m5' +
+    '!1s0x89c2536590244249:0x8c8de97e6e3da280!8m2' +
+    '!3d40.7350455!4d-74.1872983!16s%2Fg%2F11dzw7hxxw';
+
+  it.each([
+    popeyesUrl,
+    popeyesUrl.replaceAll('!', '%21').replaceAll(':0x', '%3A0x'),
+  ])(
+    'extracts the business ID instead of the preceding building ID: %s',
+    (sourceUrl) => {
+      expect(extractGoogleMapsPlaceReference(sourceUrl)).toMatchObject({
+        dataId: '0x89c2536590244249:0x8c8de97e6e3da280',
+      });
+    },
+  );
+
+  it('does not treat an unrelated hexadecimal pair as a place identifier', () => {
+    expect(
+      extractGoogleMapsPlaceReference(
+        'https://www.google.com/maps/place/Popeyes/data=!5s0x123:0x456!8m2',
+      ),
+    ).toEqual({ query: 'Popeyes' });
+  });
+
+  it('retrieves business reviews from a short link containing a building ID', async () => {
+    const redirectResponse = new Response(null, { status: 200 });
+    Object.defineProperty(redirectResponse, 'url', { value: popeyesUrl });
+    const fetchImplementation = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(input.toString());
+      if (url.hostname === 'maps.app.goo.gl') {
+        return redirectResponse;
+      }
+
+      // The containing floor has no reviews; only the business does.
+      return jsonResponse(
+        url.searchParams.get('data_id') ===
+          '0x89c2536590244249:0x8c8de97e6e3da280'
+          ? {
+              reviews: [
+                { review_id: 'review-1', snippet: 'Great service.', rating: 5 },
+              ],
+            }
+          : { place_info: { title: '1', type: 'Level' } },
+      );
+    });
+    const source = new SerpApiGoogleMapsReviewSource(
+      'private-api-key',
+      fetchImplementation,
+    );
+
+    await expect(
+      source.fetchReviews({
+        ...target('https://maps.app.goo.gl/zg9WmqLxC5sQNWMw8'),
+        entityName: 'Popeyes',
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({ reviewText: 'Great service.', rating: 5 }),
+    ]);
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+  });
+
   it('extracts a place reference from the saved Google Maps URL', () => {
     expect(
       extractGoogleMapsPlaceReference(

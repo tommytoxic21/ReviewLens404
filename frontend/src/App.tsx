@@ -190,9 +190,13 @@ function Workspace() {
     setError('');
     setNotice('');
     try {
-      await targetsApi.ingest(await token(), targetId);
+      const result = await targetsApi.ingest(await token(), targetId);
       if (isCurrentTarget()) {
-        setNotice('Review ingestion completed successfully.');
+        setNotice(
+          result.attempt.savedCount === 0
+            ? 'No additional reviews were available to import.'
+            : 'Review ingestion completed successfully.',
+        );
         await openTarget(targetId);
       }
     } catch (err) {

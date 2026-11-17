@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   index,
+  uniqueIndex,
   integer,
   jsonb,
   pgTable,
@@ -52,6 +53,9 @@ export const reviews = pgTable(
   },
   (table) => [
     index('reviews_analysis_target_id_idx').on(table.analysisTargetId),
+    uniqueIndex('reviews_target_source_review_id_unique')
+      .on(table.analysisTargetId, table.sourceReviewId)
+      .where(sql`${table.sourceReviewId} IS NOT NULL`),
     check('reviews_rating_range', sql`${table.rating} BETWEEN 1 AND 5`),
     check('reviews_text_not_empty', sql`length(btrim(${table.text})) > 0`),
   ],

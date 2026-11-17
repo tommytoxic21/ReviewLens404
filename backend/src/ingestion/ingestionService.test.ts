@@ -108,6 +108,107 @@ describe('review ingestion ownership and result state', () => {
     });
   });
 
+  it('passes previously stored review IDs to the source on the next import', async () => {
+    const owner = { userId: 'user_owner_a' };
+    const target = await createAnalysisTarget(connection.db, owner, {
+      entityName: 'Repeated Import Coffee',
+      platform: 'google',
+      sourceUrl: 'https://www.google.com/maps/place/Repeated+Import+Coffee',
+    });
+    const reviewSource = {
+      fetchReviews: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            sourceReviewId: 'review-1',
+            reviewText: 'First review.',
+            rating: 5,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            sourceReviewId: 'review-2',
+            reviewText: 'Second review.',
+            rating: 4,
+          },
+        ]),
+    };
+
+    await ingestReviewsForOwnedTarget(
+      connection.db,
+      reviewSource,
+      owner,
+      target.id,
+    );
+    const result = await ingestReviewsForOwnedTarget(
+      connection.db,
+      reviewSource,
+      owner,
+      target.id,
+    );
+    const persisted = await listReviewsForOwnedTarget(
+      connection.db,
+      owner,
+      target.id,
+    );
+
+    expect(result.attempt.savedCount).toBe(1);
+    expect(reviewSource.fetchReviews).toHaveBeenNthCalledWith(1, target);
+    expect(reviewSource.fetchReviews).toHaveBeenNthCalledWith(
+      2,
+      target,
+      new Set(['review-1']),
+    );
+    expect(persisted.map((review) => review.sourceReviewId).sort()).toEqual([
+      'review-1',
+      'review-2',
+    ]);
+  });
+
+  it('records a successful zero-review import when no more reviews remain', async () => {
+    const owner = { userId: 'user_owner_a' };
+    const target = await createAnalysisTarget(connection.db, owner, {
+      entityName: 'Exhausted Coffee',
+      platform: 'google',
+      sourceUrl: 'https://www.google.com/maps/place/Exhausted+Coffee',
+    });
+    const reviewSource = {
+      fetchReviews: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            sourceReviewId: 'review-1',
+            reviewText: 'Existing review.',
+            rating: 5,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+    };
+
+    await ingestReviewsForOwnedTarget(
+      connection.db,
+      reviewSource,
+      owner,
+      target.id,
+    );
+    const result = await ingestReviewsForOwnedTarget(
+      connection.db,
+      reviewSource,
+      owner,
+      target.id,
+    );
+
+    expect(result.attempt).toMatchObject({
+      status: 'succeeded',
+      savedCount: 0,
+      receivedCount: 0,
+      rejectedCount: 0,
+    });
+    expect(
+      await listReviewsForOwnedTarget(connection.db, owner, target.id),
+    ).toHaveLength(1);
+  });
+
   it('denies cross-user review reads and ingestion before calling the source', async () => {
     const ownerA = { userId: 'user_owner_a' };
     const ownerB = { userId: 'user_owner_b' };

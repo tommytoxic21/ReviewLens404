@@ -61,33 +61,67 @@ export async function ingestReviewsForOwnedTarget(
   let rejectedCount = 0;
 
   try {
-    const sourceReviews = await reviewSource.fetchReviews(target);
-    const normalized = normalizeSourceReviews(sourceReviews);
+    // Only examine review IDs from this already-authorized target.
+    const storedReviews = await db
+      .select({ sourceReviewId: reviews.sourceReviewId })
+      .from(reviews)
+      .where(eq(reviews.analysisTargetId, targetId));
+    const existingIds = new Set(
+      storedReviews.flatMap((review) =>
+        review.sourceReviewId ? [review.sourceReviewId] : [],
+      ),
+    );
+    const sourceReviews = await (existingIds.size
+      ? reviewSource.fetchReviews(target, existingIds)
+      : reviewSource.fetchReviews(target));
     receivedCount = sourceReviews.length;
-    rejectedCount = normalized.rejectedReviewCount;
 
-    if (normalized.reviews.length === 0) {
+    // Defense in depth for mocked/alternate review sources that do not
+    // implement pagination or that return duplicate IDs in one response.
+    const seenIds = new Set(existingIds);
+    const newReviews = sourceReviews.filter((review) => {
+      const id =
+        typeof review.sourceReviewId === 'string'
+          ? review.sourceReviewId.trim()
+          : '';
+      if (id && seenIds.has(id)) return false;
+      if (id) seenIds.add(id);
+      return true;
+    });
+    const normalized = normalizeSourceReviews(newReviews);
+    rejectedCount =
+      normalized.rejectedReviewCount +
+      (sourceReviews.length - newReviews.length);
+
+    if (normalized.reviews.length === 0 && sourceReviews.length > 0) {
+      throw new IngestionError(
+        'No usable new reviews with both review text and rating were returned.',
+      );
+    }
+    if (normalized.reviews.length === 0 && storedReviews.length === 0) {
       throw new IngestionError(
         'No usable reviews with both review text and rating were returned.',
       );
     }
 
     const completedAttempt = await db.transaction(async (transaction) => {
-      const persistedReviews = await transaction
-        .insert(reviews)
-        .values(
-          normalized.reviews.map((review) => ({
-            analysisTargetId: targetId,
-            text: review.reviewText,
-            rating: review.rating,
-            sourceReviewId: review.sourceReviewId,
-            reviewerName: review.reviewerName,
-            reviewDate: review.reviewedAt?.toISOString() ?? null,
-            reviewUrl: review.reviewUrl,
-          })),
-        )
-        .onConflictDoNothing()
-        .returning({ id: reviews.id });
+      const persistedReviews = normalized.reviews.length
+        ? await transaction
+            .insert(reviews)
+            .values(
+              normalized.reviews.map((review) => ({
+                analysisTargetId: targetId,
+                text: review.reviewText,
+                rating: review.rating,
+                sourceReviewId: review.sourceReviewId,
+                reviewerName: review.reviewerName,
+                reviewDate: review.reviewedAt?.toISOString() ?? null,
+                reviewUrl: review.reviewUrl,
+              })),
+            )
+            .onConflictDoNothing()
+            .returning({ id: reviews.id })
+        : [];
       const [completed] = await transaction
         .update(ingestionAttempts)
         .set({
